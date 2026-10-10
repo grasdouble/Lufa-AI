@@ -17,7 +17,7 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | Étape | Sujet | État | Résultat / blocage |
 |---|---|---|---|
 | 0 | Spike de compatibilité `.agents/skills/` | Validée | Revue indépendante positive ; résultats bornés à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26. |
-| 1 | Décisions techniques et socle du dépôt | À faire | — |
+| 1 | Décisions techniques et socle du dépôt | Validée | Revue indépendante positive ; job CI équivalent passé localement sous Node 24.20.0. CI distante non exécutée. |
 | 2 | Contrat et premier catalogue valide | À faire | — |
 | 3 | CLI de consultation du catalogue | À faire | — |
 | 4 | Installation initiale et verrouillage | À faire | — |
@@ -27,7 +27,8 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 8 | Pilote et décision de lancement | À faire | — |
 
 **Dernière étape validée :** étape 0 — Spike de compatibilité `.agents/skills/`.
-**Prochaine étape :** étape 1 — Décisions techniques et socle du dépôt.
+**Dernière étape validée :** étape 1 — Décisions techniques et socle du dépôt.
+**Prochaine étape :** étape 2 — Contrat et premier catalogue valide.
 
 ## Journal des validations
 
@@ -44,11 +45,11 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 
 ### Étape 1 — Décisions techniques et socle du dépôt
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation finale :** en attente
+- **État :** Validée
+- **Résumé / livrable :** Comparaison des options et décisions consignées dans [ADR 0001](adr/0001-stack-and-repository-foundation.md) ; socle npm/TypeScript, commandes locales et CI GitHub Actions.
+- **Vérifications effectuées :** `npm ci` puis `npm run check` sous Node.js 24.20.0 (mêmes commandes que le workflow CI ; format, ESLint, TypeScript et 1 test passés ; aucune vulnérabilité signalée) ; `git diff --check` (passé). La CI GitHub distante n’a pas été exécutée, aucun push n’ayant été fait.
+- **Décision / points à corriger :** Revue indépendante positive et socle accepté. Confirmer avant l’étape 7 les cibles proposées de publication (paquet npm et GitHub Pages). Aucun artefact ou déploiement produit n’est créé à cette étape.
+- **Validation finale :** validée par le coordinateur après revue indépendante et contrôles locaux sous Node 24.
 
 ### Étape 2 — Contrat et premier catalogue valide
 
