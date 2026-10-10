@@ -376,7 +376,7 @@ test('rejects missing source files', async () => {
   );
 });
 
-test('rejects a catalog root symlink that points outside the repository', async () => {
+test('rejects a catalog root symlink that points outside the repository', async (t) => {
   await withCatalog(
     [
       {
@@ -393,11 +393,19 @@ test('rejects a catalog root symlink that points outside the repository', async 
       );
       await rename(catalogPath, outsidePath);
       try {
-        await symlink(
-          outsidePath,
-          catalogPath,
-          process.platform === 'win32' ? 'junction' : 'dir',
-        );
+        try {
+          await symlink(
+            outsidePath,
+            catalogPath,
+            process.platform === 'win32' ? 'junction' : 'dir',
+          );
+        } catch (error) {
+          if (process.platform === 'win32' && error.code === 'EPERM') {
+            t.skip('Le runner Windows ne permet pas la création de jonctions.');
+            return;
+          }
+          throw error;
+        }
         await assert.rejects(
           loadCatalog(root),
           /racine du catalogue.*lien symbolique/i,
@@ -409,7 +417,7 @@ test('rejects a catalog root symlink that points outside the repository', async 
   );
 });
 
-test('rejects a symlinked artifact directory instead of silently omitting it', async () => {
+test('rejects a symlinked artifact directory instead of silently omitting it', async (t) => {
   await withCatalog(
     [
       {
@@ -425,11 +433,19 @@ test('rejects a symlinked artifact directory instead of silently omitting it', a
         path.join(hiddenArtifact, 'artifact.json'),
         JSON.stringify(artifact({ id: 'hidden-artifact' })),
       );
-      await symlink(
-        hiddenArtifact,
-        path.join(root, 'catalog', 'hidden-artifact'),
-        process.platform === 'win32' ? 'junction' : 'dir',
-      );
+      try {
+        await symlink(
+          hiddenArtifact,
+          path.join(root, 'catalog', 'hidden-artifact'),
+          process.platform === 'win32' ? 'junction' : 'dir',
+        );
+      } catch (error) {
+        if (process.platform === 'win32' && error.code === 'EPERM') {
+          t.skip('Le runner Windows ne permet pas la création de jonctions.');
+          return;
+        }
+        throw error;
+      }
 
       await assert.rejects(
         loadCatalog(root),

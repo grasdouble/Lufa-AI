@@ -1,37 +1,66 @@
 {
   "name": "lufa-ai",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "description": "Catalogue local d’artefacts pour agents IA et CLI d’installation.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/grasdouble/Lufa-AI.git"
+  },
+  "homepage": "https://github.com/grasdouble/Lufa-AI#readme",
+  "bugs": {
+    "url": "https://github.com/grasdouble/Lufa-AI/issues"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "skills",
+    "catalog"
+  ],
   "engines": {
     "node": ">=24"
+  },
+  "files": [
+    "dist/",
+    "schemas/",
+    "generated/",
+    "catalog/",
+    "README.md"
+  ],
+  "bin": {
+    "lufa": "./dist/lufa-command.js"
   },
   "scripts": {
     "format": "prettier --plugin prettier-plugin-astro --write \"src/**/*.{js,ts}\" \"tests/**/*.js\" \"*.js\" \"*.json\" \"schemas/**/*.json\" \"catalog/**/*.{json,md}\" \"generated/**/*.json\" \"*.md\" \".github/**/*.yml\" \"docs/adr/**/*.md\" \"web/**/*.{astro,js,css,mjs}\"",
     "format:check": "prettier --plugin prettier-plugin-astro --check \"src/**/*.{js,ts}\" \"tests/**/*.js\" \"*.js\" \"*.json\" \"schemas/**/*.json\" \"catalog/**/*.{json,md}\" \"generated/**/*.json\" \"*.md\" \".github/**/*.yml\" \"docs/adr/**/*.md\" \"web/**/*.{astro,js,css,mjs}\"",
     "lint": "eslint .",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "prepack": "npm run build",
     "test": "npm run web:build && npm run web:test-fixture && node --experimental-strip-types --test",
-    "catalog:validate": "node --experimental-strip-types src/catalog-command.ts validate",
-    "catalog:build": "node --experimental-strip-types src/catalog-command.ts build",
-    "catalog:check": "node --experimental-strip-types src/catalog-command.ts check",
-    "lufa": "node --experimental-strip-types src/lufa-command.ts",
+    "catalog:validate": "npm run build && node dist/catalog-command.js validate",
+    "catalog:build": "npm run build && node dist/catalog-command.js build",
+    "catalog:check": "npm run build && node dist/catalog-command.js check",
+    "lufa": "npm run build --silent && node dist/lufa-command.js",
+    "pack:smoke": "node tests/pack-smoke.js",
     "web:dev": "cd web && astro dev",
     "web:build": "cd web && astro build",
     "web:test-fixture": "astro build --root tests/fixtures/web-security",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run catalog:check && npm test"
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run catalog:check && npm test && npm run pack:smoke"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "prettier": "^3.9.9",
+    "semver": "^7.8.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.5",
     "@types/semver": "^7.8.0",
-    "ajv": "^8.20.0",
     "astro": "^7.3.8",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
-    "prettier": "^3.9.9",
     "prettier-plugin-astro": "^1.1.1",
-    "semver": "^7.8.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1"
   }

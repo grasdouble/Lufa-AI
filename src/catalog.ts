@@ -1,9 +1,9 @@
 import { lstat, realpath, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Ajv2020, type ErrorObject } from 'ajv/dist/2020.js';
 import { format } from 'prettier';
 import { rcompare, valid as validSemver } from 'semver';
+import { resolvePackageRoot } from './package-root.ts';
 
 type Compatibility = {
   environment: string;
@@ -35,7 +35,7 @@ export class CatalogValidationError extends Error {
   }
 }
 
-const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+const projectRoot = resolvePackageRoot(import.meta.url);
 const schemaPath = path.join(projectRoot, 'schemas', 'artifact.schema.json');
 const ajv = new Ajv2020({
   allErrors: true,

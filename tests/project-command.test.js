@@ -302,7 +302,7 @@ test('a declined update confirmation changes neither files nor lock', async () =
   });
 });
 
-test('rollback preserves an added file when its skill parent is moved outside and replaced by a symlink', async () => {
+test('rollback preserves an added file when its skill parent is moved outside and replaced by a symlink', async (t) => {
   await withProject(async (project) => {
     install(project);
     const lockPath = path.join(project, 'lufa.lock.json');
@@ -315,10 +315,24 @@ test('rollback preserves an added file when its skill parent is moved outside an
     const movedDirectory = path.join(externalRoot, 'moved-skill');
     const externalSentinel = path.join(externalRoot, 'greeting-template.md');
     const userFile = path.join(skillDirectory, 'user-content.md');
-    await writeFile(userFile, 'User-authored content must survive.\n');
-    await writeFile(externalSentinel, 'External user file must survive.\n');
-
     try {
+      await writeFile(userFile, 'User-authored content must survive.\n');
+      await writeFile(externalSentinel, 'External user file must survive.\n');
+
+      if (process.platform === 'win32') {
+        const symlinkProbe = path.join(externalRoot, 'symlink-probe');
+        try {
+          await symlink(project, symlinkProbe, 'junction');
+        } catch (error) {
+          if (error.code === 'EPERM') {
+            t.skip('Le runner Windows ne permet pas la création de jonctions.');
+            return;
+          }
+          throw error;
+        }
+        await rm(symlinkProbe);
+      }
+
       await assert.rejects(
         runUpdateCommand(['hello-agent', '--yes'], {
           project,
@@ -327,7 +341,11 @@ test('rollback preserves an added file when its skill parent is moved outside an
           confirm: async () => true,
           onBeforeLockCommit: async () => {
             await rename(skillDirectory, movedDirectory);
-            await symlink(externalRoot, skillDirectory);
+            await symlink(
+              externalRoot,
+              skillDirectory,
+              process.platform === 'win32' ? 'junction' : 'dir',
+            );
             throw new Error('simulated failure after moving skill directory');
           },
         }),

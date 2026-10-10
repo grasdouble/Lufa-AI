@@ -334,7 +334,9 @@ test('existing unmanaged destinations and different locked versions are safe con
   );
 });
 
-test('catalog traversal and destination/source symlinks are rejected', async () => {
+test('catalog traversal and destination/source symlinks are rejected', async (t) => {
+  let windowsLinkUnavailable = false;
+
   await withFixture(async (context) => {
     context.artifact.versions[0].files[0].destination = '../outside/SKILL.md';
     await writeFile(
@@ -350,171 +352,227 @@ test('catalog traversal and destination/source symlinks are rejected', async () 
   await withFixture(async (context) => {
     const skillDirectory = path.join(context.projectRoot, '.agents/skills');
     await mkdir(path.dirname(skillDirectory), { recursive: true });
-    await symlink(context.root, skillDirectory);
+    try {
+      await symlink(
+        context.root,
+        skillDirectory,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+    } catch (error) {
+      if (process.platform === 'win32' && error.code === 'EPERM') {
+        t.skip('Le runner Windows ne permet pas la création de jonctions.');
+        windowsLinkUnavailable = true;
+        return;
+      }
+      throw error;
+    }
     await assert.rejects(install(context), /Lien symbolique interdit/);
   });
+  if (windowsLinkUnavailable) return;
 
   await withFixture(async (context) => {
     const source = path.join(context.artifactRoot, 'versions/1.0.0/SKILL.md');
     await rm(source);
     const alternate = path.join(context.artifactRoot, 'alternate.md');
     await writeFile(alternate, 'unsafe');
-    await symlink(alternate, source);
+    try {
+      await symlink(alternate, source, 'file');
+    } catch (error) {
+      if (process.platform === 'win32' && error.code === 'EPERM') {
+        t.skip(
+          'La création des liens symboliques de fichiers Windows exige Developer Mode ou le privilège SeCreateSymbolicLinkPrivilege.',
+        );
+        return;
+      }
+      throw error;
+    }
     await assert.rejects(install(context), /Source symbolique interdite/);
   });
 });
 
-test('anchored CWD rejects a parent replaced by a symlink before the relative write', async () => {
-  await withFixture(async (context) => {
-    const originalCwd = process.cwd();
-    const outside = path.join(context.root, 'outside');
-    const skillsDirectory = path.join(context.projectRoot, '.agents/skills');
-    const movedSkillsDirectory = path.join(
-      context.projectRoot,
-      '.agents/skills-original',
-    );
-    await mkdir(outside);
+test(
+  'anchored CWD rejects a parent replaced by a symlink before the relative write',
+  {
+    skip:
+      process.platform === 'win32'
+        ? 'Windows interdit le renommage du répertoire de travail actif utilisé par ce test de course.'
+        : false,
+  },
+  async () => {
+    await withFixture(async (context) => {
+      const originalCwd = process.cwd();
+      const outside = path.join(context.root, 'outside');
+      const skillsDirectory = path.join(context.projectRoot, '.agents/skills');
+      const movedSkillsDirectory = path.join(
+        context.projectRoot,
+        '.agents/skills-original',
+      );
+      await mkdir(outside);
 
-    await assert.rejects(
-      install(context, ['sample', '--yes'], {
-        onAfterCwdCheckBeforeWrite: async () => {
-          // Replace the checked parent precisely after its last validation and
-          // immediately before basename-relative staging/link operations.
-          await rename(skillsDirectory, movedSkillsDirectory);
-          await symlink(outside, skillsDirectory);
-        },
-      }),
-      /répertoire de travail ancré a changé/,
-    );
-    assert.deepEqual(await readdir(outside), []);
-    assert.deepEqual(await readdir(path.dirname(movedSkillsDirectory)), [
-      'skills',
-    ]);
-    await assert.rejects(
-      lstat(path.join(context.projectRoot, 'lufa.lock.json')),
-    );
-    assert.equal(process.cwd(), originalCwd);
-  });
-});
-
-test('rollback removes earlier transaction files when the anchored directory is renamed within the project', async () => {
-  await withFixture(async (context) => {
-    const originalCwd = process.cwd();
-    const version = context.artifact.versions[0];
-    version.files = [
-      {
-        path: 'versions/1.0.0/A.md',
-        destination: '.agents/skills/sample/A.md',
-      },
-      {
-        path: 'versions/1.0.0/B.md',
-        destination: '.agents/skills/sample/B.md',
-      },
-    ];
-    await writeFile(
-      path.join(context.artifactRoot, 'artifact.json'),
-      JSON.stringify(context.artifact),
-    );
-    await writeFile(
-      path.join(context.artifactRoot, 'versions/1.0.0/A.md'),
-      'A',
-    );
-    await writeFile(
-      path.join(context.artifactRoot, 'versions/1.0.0/B.md'),
-      'B',
-    );
-
-    const outside = path.join(context.root, 'outside');
-    const skillsDirectory = path.join(context.projectRoot, '.agents/skills');
-    const movedSkillsDirectory = path.join(
-      context.projectRoot,
-      '.agents/skills-moved',
-    );
-    await mkdir(outside);
-
-    await assert.rejects(
-      install(context, ['sample', '--yes'], {
-        onAfterCwdCheckBeforeWrite: async (destination) => {
-          if (destination.endsWith('/B.md')) {
-            assert.equal(
-              await readFile(path.join(skillsDirectory, 'sample/A.md'), 'utf8'),
-              'A',
-            );
+      await assert.rejects(
+        install(context, ['sample', '--yes'], {
+          onAfterCwdCheckBeforeWrite: async () => {
+            // Replace the checked parent precisely after its last validation and
+            // immediately before basename-relative staging/link operations.
             await rename(skillsDirectory, movedSkillsDirectory);
             await symlink(outside, skillsDirectory);
-          }
+          },
+        }),
+        /répertoire de travail ancré a changé/,
+      );
+      assert.deepEqual(await readdir(outside), []);
+      assert.deepEqual(await readdir(path.dirname(movedSkillsDirectory)), [
+        'skills',
+      ]);
+      await assert.rejects(
+        lstat(path.join(context.projectRoot, 'lufa.lock.json')),
+      );
+      assert.equal(process.cwd(), originalCwd);
+    });
+  },
+);
+
+test(
+  'rollback removes earlier transaction files when the anchored directory is renamed within the project',
+  {
+    skip:
+      process.platform === 'win32'
+        ? 'Windows interdit le renommage du répertoire de travail actif utilisé par ce test de course.'
+        : false,
+  },
+  async () => {
+    await withFixture(async (context) => {
+      const originalCwd = process.cwd();
+      const version = context.artifact.versions[0];
+      version.files = [
+        {
+          path: 'versions/1.0.0/A.md',
+          destination: '.agents/skills/sample/A.md',
         },
-      }),
-      /Échec de l’installation/,
-    );
-
-    assert.deepEqual(await readdir(outside), []);
-    await assert.rejects(lstat(movedSkillsDirectory));
-    await assert.rejects(
-      lstat(path.join(context.projectRoot, 'lufa.lock.json')),
-    );
-    assert.equal(process.cwd(), originalCwd);
-  });
-});
-
-test('rollback refuses unsafe cleanup when the anchored directory was moved outside the project', async () => {
-  await withFixture(async (context) => {
-    const version = context.artifact.versions[0];
-    version.files = [
-      {
-        path: 'versions/1.0.0/A.md',
-        destination: '.agents/skills/sample/A.md',
-      },
-      {
-        path: 'versions/1.0.0/B.md',
-        destination: '.agents/skills/sample/B.md',
-      },
-    ];
-    await writeFile(
-      path.join(context.artifactRoot, 'artifact.json'),
-      JSON.stringify(context.artifact),
-    );
-    await writeFile(
-      path.join(context.artifactRoot, 'versions/1.0.0/A.md'),
-      'A',
-    );
-    await writeFile(
-      path.join(context.artifactRoot, 'versions/1.0.0/B.md'),
-      'B',
-    );
-
-    const skillsDirectory = path.join(context.projectRoot, '.agents/skills');
-    const outsideTarget = path.join(context.root, 'outside-target');
-    const movedSkillsDirectory = path.join(context.root, 'moved-skills');
-    await mkdir(outsideTarget);
-    let reportedError = '';
-    await assert.rejects(
-      install(context, ['sample', '--yes'], {
-        onAfterCwdCheckBeforeWrite: async (destination) => {
-          if (destination.endsWith('/B.md')) {
-            await rename(skillsDirectory, movedSkillsDirectory);
-            await symlink(outsideTarget, skillsDirectory);
-          }
+        {
+          path: 'versions/1.0.0/B.md',
+          destination: '.agents/skills/sample/B.md',
         },
-      }),
-      (error) => {
-        reportedError = error.message;
-        return /Rollback incomplet : 1 fichier/.test(error.message);
-      },
-    );
+      ];
+      await writeFile(
+        path.join(context.artifactRoot, 'artifact.json'),
+        JSON.stringify(context.artifact),
+      );
+      await writeFile(
+        path.join(context.artifactRoot, 'versions/1.0.0/A.md'),
+        'A',
+      );
+      await writeFile(
+        path.join(context.artifactRoot, 'versions/1.0.0/B.md'),
+        'B',
+      );
 
-    assert.match(reportedError, /n’est plus identifiable sous le projet/);
-    assert.equal(
-      await readFile(path.join(movedSkillsDirectory, 'sample/A.md'), 'utf8'),
-      'A',
-    );
-    await assert.rejects(lstat(path.join(movedSkillsDirectory, 'sample/B.md')));
-    assert.deepEqual(await readdir(outsideTarget), []);
-    await assert.rejects(
-      lstat(path.join(context.projectRoot, 'lufa.lock.json')),
-    );
-  });
-});
+      const outside = path.join(context.root, 'outside');
+      const skillsDirectory = path.join(context.projectRoot, '.agents/skills');
+      const movedSkillsDirectory = path.join(
+        context.projectRoot,
+        '.agents/skills-moved',
+      );
+      await mkdir(outside);
+
+      await assert.rejects(
+        install(context, ['sample', '--yes'], {
+          onAfterCwdCheckBeforeWrite: async (destination) => {
+            if (destination.endsWith('/B.md')) {
+              assert.equal(
+                await readFile(
+                  path.join(skillsDirectory, 'sample/A.md'),
+                  'utf8',
+                ),
+                'A',
+              );
+              await rename(skillsDirectory, movedSkillsDirectory);
+              await symlink(outside, skillsDirectory);
+            }
+          },
+        }),
+        /Échec de l’installation/,
+      );
+
+      assert.deepEqual(await readdir(outside), []);
+      await assert.rejects(lstat(movedSkillsDirectory));
+      await assert.rejects(
+        lstat(path.join(context.projectRoot, 'lufa.lock.json')),
+      );
+      assert.equal(process.cwd(), originalCwd);
+    });
+  },
+);
+
+test(
+  'rollback refuses unsafe cleanup when the anchored directory was moved outside the project',
+  {
+    skip:
+      process.platform === 'win32'
+        ? 'Windows interdit le renommage du répertoire de travail actif utilisé par ce test de course.'
+        : false,
+  },
+  async () => {
+    await withFixture(async (context) => {
+      const version = context.artifact.versions[0];
+      version.files = [
+        {
+          path: 'versions/1.0.0/A.md',
+          destination: '.agents/skills/sample/A.md',
+        },
+        {
+          path: 'versions/1.0.0/B.md',
+          destination: '.agents/skills/sample/B.md',
+        },
+      ];
+      await writeFile(
+        path.join(context.artifactRoot, 'artifact.json'),
+        JSON.stringify(context.artifact),
+      );
+      await writeFile(
+        path.join(context.artifactRoot, 'versions/1.0.0/A.md'),
+        'A',
+      );
+      await writeFile(
+        path.join(context.artifactRoot, 'versions/1.0.0/B.md'),
+        'B',
+      );
+
+      const skillsDirectory = path.join(context.projectRoot, '.agents/skills');
+      const outsideTarget = path.join(context.root, 'outside-target');
+      const movedSkillsDirectory = path.join(context.root, 'moved-skills');
+      await mkdir(outsideTarget);
+      let reportedError = '';
+      await assert.rejects(
+        install(context, ['sample', '--yes'], {
+          onAfterCwdCheckBeforeWrite: async (destination) => {
+            if (destination.endsWith('/B.md')) {
+              await rename(skillsDirectory, movedSkillsDirectory);
+              await symlink(outsideTarget, skillsDirectory);
+            }
+          },
+        }),
+        (error) => {
+          reportedError = error.message;
+          return /Rollback incomplet : 1 fichier/.test(error.message);
+        },
+      );
+
+      assert.match(reportedError, /n’est plus identifiable sous le projet/);
+      assert.equal(
+        await readFile(path.join(movedSkillsDirectory, 'sample/A.md'), 'utf8'),
+        'A',
+      );
+      await assert.rejects(
+        lstat(path.join(movedSkillsDirectory, 'sample/B.md')),
+      );
+      assert.deepEqual(await readdir(outsideTarget), []);
+      await assert.rejects(
+        lstat(path.join(context.projectRoot, 'lufa.lock.json')),
+      );
+    });
+  },
+);
 
 test('a write failure after one file rolls back installed files and does not write a lock', async () => {
   await withFixture(async (context) => {

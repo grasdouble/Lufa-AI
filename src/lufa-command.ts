@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +9,7 @@ import {
   runOutdatedCommand,
   runUpdateCommand,
 } from './project-command.ts';
+import { resolvePackageRoot } from './package-root.ts';
 
 type ArtifactSummary = {
   id: string;
@@ -41,7 +44,7 @@ type CatalogIndex = {
   artifacts: ArtifactSummary[];
 };
 
-const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+const projectRoot = resolvePackageRoot(import.meta.url);
 const indexPath = path.join(projectRoot, 'generated', 'catalog-index.json');
 
 const usage = `Usage : npm run lufa -- <commande> [options]
@@ -295,10 +298,16 @@ function printArtifactDetails(artifact: ArtifactSummary): void {
   }
 }
 
-if (
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+const executedModulePath = (() => {
+  if (!process.argv[1]) return undefined;
+  try {
+    return realpathSync(process.argv[1]);
+  } catch {
+    return undefined;
+  }
+})();
+
+if (executedModulePath === fileURLToPath(import.meta.url)) {
   runCatalogCli(process.argv.slice(2)).catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

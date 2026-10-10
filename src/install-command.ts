@@ -14,9 +14,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import { stdin, stdout } from 'node:process';
-import { fileURLToPath } from 'node:url';
 import { valid as validSemver, rcompare } from 'semver';
 import { loadCatalog } from './catalog.ts';
+import { resolvePackageRoot } from './package-root.ts';
 
 type InstallFile = { path: string; destination: string };
 type ArtifactVersion = { version: string; files: InstallFile[] };
@@ -58,7 +58,7 @@ type CreatedDirectory = {
 };
 type ReleaseProjectLock = () => Promise<void>;
 
-const sourceRoot = fileURLToPath(new URL('..', import.meta.url));
+const sourceRoot = resolvePackageRoot(import.meta.url);
 const targetDirectory = '.agents/skills';
 const lockName = 'lufa.lock.json';
 const installLockName = '.lufa.install.lock';

@@ -55,11 +55,37 @@ npm run catalog:check    # valide les sources et vérifie la fraîcheur de l’i
 ## Consulter le catalogue
 
 Les commandes de consultation lisent `generated/catalog-index.json` sans modifier
-le projet. La CLI locale ne contacte aucun service et ne met rien en cache.
-L’installation, elle, lit les sources du catalogue local de développement dans
-`catalog/` : elle ne télécharge pas d’artefact et n’est pas encore une commande
-distribuée. À cette étape, la CLI est utilisable depuis le dépôt, sans
-installation de paquet ni commande `bin` :
+le projet. La CLI ne contacte aucun service et ne met rien en cache. L’installation
+lit les sources incluses du catalogue : elle ne télécharge pas d’artefact.
+
+Le paquet npm prévu est provisoirement nommé `lufa-ai` (aucune publication n’a
+été effectuée ; la disponibilité du nom peut évoluer). Pour compiler et créer un
+tarball local :
+
+```sh
+npm run build
+npm pack
+```
+
+Pour prévisualiser son installation dans un préfixe npm isolé, après `npm pack` :
+
+```sh
+npm install --prefix ./lufa-preview ./lufa-ai-0.1.0.tgz
+cd ./lufa-preview
+npm exec -- lufa list --json
+npm exec -- lufa show hello-agent
+npm exec -- lufa install hello-agent --yes --project ../lufa-preview-project
+```
+
+Le tarball contient le JavaScript compilé, le schéma, l’index et les sources de
+catalogue nécessaires ; l’exécutable public est `lufa`. Pour tester le parcours
+pack/install de bout en bout dans un répertoire temporaire, sans publier :
+
+```sh
+npm run pack:smoke
+```
+
+Depuis le dépôt, les commandes restent disponibles via npm :
 
 ```sh
 npm run lufa -- list

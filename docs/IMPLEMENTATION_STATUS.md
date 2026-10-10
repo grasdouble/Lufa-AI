@@ -23,11 +23,11 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 4     | Installation initiale et verrouillage    | Validée  | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS.                     |
 | 5     | Inventaire et mises à jour sûres         | Validée | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                           |
 | 6     | Catalogue web en lecture seule           | Validée | Revue indépendante positive ; 46 tests, smoke HTTP, vérifications Chromium mobile/bureau et parcours clavier passés.                     |
-| 7     | Publication, cache et portabilité        | À faire  | —                                                                                                                                  |
+| 7     | Publication, cache et portabilité        | En cours | Livraison 7.1 validée et commitée ; livraison 7.2 (publication statique) à commencer.                                                 |
 | 8     | Pilote et décision de lancement          | À faire  | —                                                                                                                                  |
 
 **Dernière étape validée :** étape 6 — Catalogue web en lecture seule.
-**Prochaine étape :** étape 7 — Publication, cache et portabilité.
+**Étape 7 en cours :** livraison 7.2 — Publication statique.
 
 ## Journal des validations
 
@@ -92,11 +92,13 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 
 ### Étape 7 — Publication, cache et portabilité
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation finale :** en attente
+- **État :** En cours
+- **Résumé / livrable :** Étape découpée en paquets 7.1 (CLI/CI), 7.2 (publication statique) et 7.3 (registre distant/cache).
+- **Livraison 7.1 :** paquet npm `lufa-ai` (nom provisoire), build TypeScript, commande `lufa`, ressources runtime incluses, smoke `npm pack`/installation isolée et matrice Node 24 macOS/Linux/Windows configurés.
+- **Vérifications effectuées :** Node.js 24.20.0/macOS : `npm ci`, `npm run check` (format, lint, types, catalogue, build web, 46 tests) et smoke du tarball dans un consommateur temporaire hors dépôt ; `git diff --check` passé. Le smoke exécute `lufa list --json`, `show` et `install --yes` depuis l’installation du tarball. La CI est configurée mais ses jobs Linux/Windows ne sont pas exécutés dans cette validation locale.
+- **Décision / points à corriger :** Aucun déploiement ni publication npm. Le nom reste à confirmer avant toute publication. Trois tests de course qui renomment le CWD actif sont ignorés sur Windows, car Windows interdit de renommer un répertoire de travail actif. Les tests utilisant un lien/jonction ne sont marqués ignorés que sur `EPERM` Windows ; ils retournent alors immédiatement du test concerné, les autres erreurs restent fatales et le répertoire temporaire du test de mise à jour est nettoyé dans `finally`, y compris après échec du probe. La validation des jobs CI et les livraisons 7.2/7.3 restent à faire.
+- **Validation livraison 7.1 :** validée par le coordinateur après revue indépendante ; jobs distants Linux/Windows restent à exécuter après push.
+- **Prochaine livraison :** 7.2 — publication statique du site et du catalogue sous le préfixe GitHub Pages.
 
 ### Étape 8 — Pilote et décision de lancement
 

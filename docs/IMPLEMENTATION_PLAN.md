@@ -132,6 +132,14 @@ Le plan ne fixe pas encore de langage, framework ou fournisseur d’hébergement
 
 **Validation / porte de sortie :** installation de la CLI depuis les instructions publiques sur les trois plateformes ; consultation hors ligne de données en cache ; publication d’une version de catalogue ; CI bloquant les données invalides.
 
+Cette étape est volontairement découpée en trois livraisons révisables afin d’éviter un diff transversal trop large :
+
+1. **7.1 — Paquet CLI et matrice CI :** compiler et empaqueter la CLI sans la publier, installer le tarball dans un projet temporaire, tester son exécutable et configurer les jobs macOS/Linux/Windows.
+2. **7.2 — Publication statique :** rendre le site et les données du catalogue compatibles avec le préfixe GitHub Pages, ajouter le workflow de déploiement et vérifier localement les routes/assets sous ce préfixe. Le workflow n’est pas déclenché par l’implémentation.
+3. **7.3 — Registre distant et cache :** servir les index et fichiers versionnés, les consommer depuis la CLI avec intégrité vérifiée, cache local et comportement hors ligne ; tester via un serveur HTTP de fixture avant tout déploiement réel.
+
+Chaque livraison a son propre petit diff, sa revue indépendante et son commit. L’étape 7 reste **En cours** jusqu’à la validation des trois livraisons et des preuves de portabilité disponibles.
+
 ### Étape 8 — Pilote et décision de lancement
 
 **But :** éprouver le parcours complet sur de vrais projets consommateurs avant d’élargir le périmètre.
