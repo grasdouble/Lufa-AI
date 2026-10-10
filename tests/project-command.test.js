@@ -14,14 +14,24 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { runInstallCommand } from '../src/install-command.ts';
 import { runUpdateCommand } from '../src/project-command.ts';
+import { createRegistryFixture } from './registry-fixture.js';
 
 const cliPath = fileURLToPath(
   new URL('../src/lufa-command.ts', import.meta.url),
 );
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+const registry = await createRegistryFixture();
+const cacheDirectory = await mkdtemp(
+  path.join(tmpdir(), 'lufa-project-cache-'),
+);
+
+after(async () => {
+  await registry.close();
+  await rm(cacheDirectory, { recursive: true, force: true });
+});
 
 function cli(args, cwd = repoRoot) {
   return spawnSync(
@@ -30,6 +40,11 @@ function cli(args, cwd = repoRoot) {
     {
       cwd,
       encoding: 'utf8',
+      env: {
+        ...process.env,
+        LUFA_REGISTRY_URL: registry.url,
+        LUFA_CACHE_DIR: cacheDirectory,
+      },
     },
   );
 }

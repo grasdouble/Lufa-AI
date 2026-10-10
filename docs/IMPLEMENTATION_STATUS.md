@@ -21,13 +21,13 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 2     | Contrat et premier catalogue valide      | Validée  | Revue indépendante positive ; schéma, sécurité des chemins, preuves et index déterministe couverts par 16 tests sous Node 24.20.0. |
 | 3     | CLI de consultation du catalogue         | Validée  | Revue indépendante positive ; 22 tests sous Node 24, JSON sans bruit npm et commande d’installation indicative documentés.         |
 | 4     | Installation initiale et verrouillage    | Validée  | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS.                     |
-| 5     | Inventaire et mises à jour sûres         | Validée | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                           |
-| 6     | Catalogue web en lecture seule           | Validée | Revue indépendante positive ; 46 tests, smoke HTTP, vérifications Chromium mobile/bureau et parcours clavier passés.                     |
-| 7     | Publication, cache et portabilité        | En cours | Livraisons 7.1/7.2 validées ; livraison 7.3 (registre distant/cache) à commencer.                                                    |
+| 5     | Inventaire et mises à jour sûres         | Validée  | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                            |
+| 6     | Catalogue web en lecture seule           | Validée  | Revue indépendante positive ; 46 tests, smoke HTTP, vérifications Chromium mobile/bureau et parcours clavier passés.               |
+| 7     | Publication, cache et portabilité        | En cours | Livraisons 7.1/7.2/7.3a validées ; 7.3b (fichiers distants) à commencer.                                                         |
 | 8     | Pilote et décision de lancement          | À faire  | —                                                                                                                                  |
 
 **Dernière étape validée :** étape 6 — Catalogue web en lecture seule.
-**Étape 7 en cours :** livraison 7.3 — Registre distant et cache.
+**Étape 7 en cours :** livraison 7.3b — Fichiers distants et empreintes.
 
 ## Journal des validations
 
@@ -107,7 +107,9 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 - **Vérifications effectuées :** macOS/Node.js 24.20.0 : `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, types, catalogue, builds locaux et `/Lufa-AI/`, fixtures, 50 tests, smoke du tarball) et `git diff --check` passés. Aucun workflow n’a été déclenché et aucune publication/déploiement n’a été effectué.
 - **Décision / points à corriger :** Revue indépendante positive. URL prévue `https://grasdouble.github.io/Lufa-AI/`. Aucun workflow déclenché, aucun déploiement effectué. Les jobs CI Linux/Windows de la matrice 7.1 restent à exécuter.
 - **Validation livraison 7.2 :** validée par le coordinateur après revue indépendante.
-- **Prochaine livraison :** 7.3 — registre distant et cache.
+- **Livraison 7.3a :** Validée — lecture/rafraîchissement/cache de l’index distant pour `list`, `search`, `show` et `outdated`. URL par défaut GitHub Pages, HTTP limité au loopback, surcharge HTTPS `LUFA_REGISTRY_URL`, cache utilisateur configurable par `LUFA_CACHE_DIR`, validation stricte, refus des symlinks et taille maximale de 5 Mio, replis cache/instantané avec avertissement `stderr` ; `install`/`update` restent locaux jusqu’à 7.3b. Vérifié sur macOS/Node 24.20.0 par `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, types, 61 tests avec HTTP local, smoke offline du tarball) et `git diff --check` ; aucun accès GitHub réel, déploiement, commit ou push. Les vérifications de chemins ne prétendent pas résister aux courses d’un processus tiers du même UID. Revue indépendante positive.
+- **Validation livraison 7.3a :** validée par le coordinateur après revue indépendante.
+- **Livraison 7.3b :** En cours — téléchargement à la demande, empreintes et cache de contenus pour install/update.
 
 ### Étape 8 — Pilote et décision de lancement
 

@@ -76,9 +76,10 @@ npm run catalog:check    # valide les sources et vérifie la fraîcheur de l’i
 
 ## Consulter le catalogue
 
-Les commandes de consultation lisent `generated/catalog-index.json` sans modifier
-le projet. La CLI ne contacte aucun service et ne met rien en cache. L’installation
-lit les sources incluses du catalogue : elle ne télécharge pas d’artefact.
+Les commandes `list`, `search`, `show` et `outdated` rafraîchissent l’index du
+registre statique, sans modifier le projet et sans envoyer de données du projet.
+L’installation lit toujours les sources incluses du paquet : elle ne télécharge
+pas d’artefact.
 
 Le paquet npm prévu est provisoirement nommé `lufa-ai` (aucune publication n’a
 été effectuée ; la disponibilité du nom peut évoluer). Pour compiler et créer un
@@ -129,6 +130,26 @@ objet complet pour le détail). `show` expose notamment les versions et dates,
 fichiers/destinations, niveaux et preuves de compatibilité, provenance,
 prérequis et avertissements. `npm run lufa -- --help` affiche l’aide. Régénérez
 l’index avec `npm run catalog:build` si celui-ci est absent ou invalide.
+
+L’URL par défaut de l’index est
+`https://grasdouble.github.io/Lufa-AI/registry/catalog-index.json`. Pour le
+développement et les tests, `LUFA_REGISTRY_URL` peut la remplacer par une URL
+HTTPS personnalisée ; HTTP n’est permis que vers `localhost`, `127.0.0.0/8` ou
+`::1`. Les redirections sont refusées. La CLI effectue une requête GET avec un
+délai maximal de 3 secondes ; elle ne transmet ni chemin de projet, ni lock, ni
+autre donnée projet. L’index
+validé est mis en cache de façon atomique dans le cache utilisateur :
+`$XDG_CACHE_HOME/lufa-ai` sous Linux (ou `~/.cache/lufa-ai`),
+`~/Library/Caches/lufa-ai` sous macOS et `%LOCALAPPDATA%/lufa-ai/cache` sous
+Windows. `LUFA_CACHE_DIR` permet de choisir un dossier de cache, notamment pour
+les tests.
+
+Chaque consultation indique sur `stderr` si l’index vient d’être rafraîchi. Si
+le registre est indisponible ou invalide, la CLI utilise le dernier index en
+cache, sinon l’instantané inclus au paquet ; un avertissement précise alors la
+date du cache ou que l’instantané peut être périmé. Le cache symbolique ou de
+plus de 5 Mio est ignoré. Ces messages ne polluent pas le JSON écrit sur
+`stdout`.
 
 Le détail indique également `lufa install <identifiant>` comme commande
 d’installation.
@@ -207,9 +228,9 @@ npm run lufa -- update hello-agent --project ../mon-projet --yes
 
 `installed` liste uniquement les entrées de `lufa.lock.json` (identifiant,
 version exacte, cible et fichiers enregistrés). `outdated` compare chaque entrée
-à la dernière version stable présente dans le catalogue local et distingue
-`outdated`, `up-to-date` et `unavailable`. Les options `--json` de ces commandes
-produisent des tableaux JSON sur `stdout`.
+à la dernière version stable de l’index distant (ou du cache/instantané de
+repli) et distingue `outdated`, `up-to-date` et `unavailable`. Les options
+`--json` de ces commandes produisent des tableaux JSON sur `stdout`.
 
 `update [identifiant]` (sans identifiant : toutes les entrées verrouillées)
 affiche la provenance déclarée (dépôt), le chemin local du catalogue réellement
@@ -219,7 +240,9 @@ confirmation ; les scripts non interactifs doivent fournir `--yes` ou
 `--non-interactive`. `update --json` fournit le plan JSON ; avec confirmation,
 la sortie JSON inclut aussi `applied` et les notes de résultat. Les versions
 cibles sont toujours stables ; il n’y a pas de sélection de préversion pour
-`update`.
+`update`. Temporairement, `update` reste intégralement local au paquet et ne
+consulte pas l’index distant ; le téléchargement des fichiers distants et la
+mise à jour depuis ceux-ci sont reportés à la livraison 7.3b.
 
 Avant toute écriture, les empreintes SHA-256 du lock sont comparées aux fichiers
 locaux. Un fichier modifié ou supprimé bloque par défaut l’opération. Après

@@ -15,6 +15,7 @@ import { stdin, stdout } from 'node:process';
 import path from 'node:path';
 import { gt, rcompare } from 'semver';
 import { loadCatalog, projectRoot as catalogProjectRoot } from './catalog.ts';
+import { resolveCatalogIndex } from './registry-index.ts';
 import {
   acquireProjectLock,
   ensureProjectRoot,
@@ -249,9 +250,8 @@ export async function runOutdatedCommand(
   const parsed = parseReadArgs(args, 'outdated');
   const project = await ensureProjectRoot(options.project ?? parsed.project);
   const lock = await readInstalled(project);
-  const artifacts = (await loadCatalog(
-    options.catalogRoot ?? sourceRoot,
-  )) as unknown as Artifact[];
+  const { index } = await resolveCatalogIndex();
+  const artifacts = index.artifacts as unknown as Artifact[];
   const catalog = new Map(artifacts.map((artifact) => [artifact.id, artifact]));
   const result = lock.installs.map((entry) => {
     const artifact = catalog.get(entry.id);

@@ -31,6 +31,16 @@ décrit pas encore les mises à jour, qui relèvent de l’étape 5.
 L’installation et la mise à jour lisent le catalogue local de développement dans
 le dépôt Lufa-AI ; elles n’ajoutent ni accès réseau ni cache.
 
+## Index distant et cache — livraison 7.3a
+
+- La consultation ne transmet aucune donnée du projet. Le cache d’index rejette
+  les chemins de cache comportant des liens symboliques, les fichiers qui ne
+  sont pas ordinaires et les caches dépassant 5 Mio ; l’écriture utilise un
+  fichier temporaire puis un renommage atomique.
+- Ces contrôles sont des vérifications au moment de l’opération, pas une garantie
+  contre un processus tiers du même UID qui remplace un composant entre le
+  contrôle et l’accès. Aucune protection contre ces courses n’est revendiquée.
+
 ## Extension étape 5 — inventaire et mises à jour
 
 - `installed` et `outdated` lisent `lufa.lock.json`. Les écritures d’inventaire

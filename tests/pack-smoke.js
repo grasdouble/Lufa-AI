@@ -26,7 +26,11 @@ function runNpm(args, cwd) {
   const result = spawnSync(process.execPath, [npmCli, ...args], {
     cwd,
     encoding: 'utf8',
-    env: process.env,
+    env: {
+      ...process.env,
+      LUFA_REGISTRY_URL: 'http://127.0.0.1:1/registry/catalog-index.json',
+      LUFA_CACHE_DIR: path.join(temporaryRoot, 'index-cache'),
+    },
     timeout: 120_000,
   });
   if (result.error) throw result.error;
@@ -52,6 +56,7 @@ try {
   for (const requiredFile of [
     'dist/lufa-command.js',
     'dist/package-root.js',
+    'dist/registry-index.js',
     'schemas/artifact.schema.json',
     'generated/catalog-index.json',
     'catalog/hello-agent/versions/1.2.0/SKILL.md',

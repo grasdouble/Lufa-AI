@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInstallCommand } from './install-command.ts';
 import {
@@ -9,43 +7,10 @@ import {
   runOutdatedCommand,
   runUpdateCommand,
 } from './project-command.ts';
-import { resolvePackageRoot } from './package-root.ts';
-
-type ArtifactSummary = {
-  id: string;
-  name: string;
-  description: string;
-  type: string;
-  authors: string[];
-  provenance: { repository: string; license: string };
-  discovery: { categories: string[]; keywords: string[] };
-  versions: ArtifactVersion[];
-};
-
-type ArtifactVersion = {
-  version: string;
-  publishedAt: string;
-  files: { path: string; destination: string }[];
-  compatibilities: {
-    environment: string;
-    level: 'declared' | 'verified';
-    evidence?: {
-      testedVersion: string;
-      method: string;
-      reference: string;
-    };
-  }[];
-  prerequisites: string[];
-  warnings: string[];
-};
-
-type CatalogIndex = {
-  schemaVersion: 1;
-  artifacts: ArtifactSummary[];
-};
-
-const projectRoot = resolvePackageRoot(import.meta.url);
-const indexPath = path.join(projectRoot, 'generated', 'catalog-index.json');
+import {
+  resolveCatalogIndex,
+  type RegistryArtifact,
+} from './registry-index.ts';
 
 const usage = `Usage : npm run lufa -- <commande> [options]
 
@@ -78,42 +43,7 @@ class CliError extends Error {
   }
 }
 
-async function readCatalogIndex(): Promise<CatalogIndex> {
-  let rawIndex: string;
-  try {
-    rawIndex = await readFile(indexPath, 'utf8');
-  } catch {
-    throw new CliError(
-      `Index du catalogue introuvable (${path.relative(projectRoot, indexPath)}). Exécuter npm run catalog:build depuis le dépôt Lufa-AI.`,
-    );
-  }
-
-  let index: unknown;
-  try {
-    index = JSON.parse(rawIndex) as unknown;
-  } catch {
-    throw new CliError(
-      `Index du catalogue illisible (${path.relative(projectRoot, indexPath)}). Exécuter npm run catalog:build pour le régénérer.`,
-    );
-  }
-
-  if (
-    typeof index !== 'object' ||
-    index === null ||
-    !('schemaVersion' in index) ||
-    index.schemaVersion !== 1 ||
-    !('artifacts' in index) ||
-    !Array.isArray(index.artifacts)
-  ) {
-    throw new CliError(
-      `Format d’index du catalogue invalide (${path.relative(projectRoot, indexPath)}). Exécuter npm run catalog:check.`,
-    );
-  }
-
-  return index as CatalogIndex;
-}
-
-function toSummary(artifact: ArtifactSummary) {
+function toSummary(artifact: RegistryArtifact) {
   return {
     id: artifact.id,
     name: artifact.name,
@@ -125,7 +55,7 @@ function toSummary(artifact: ArtifactSummary) {
   };
 }
 
-function matchesSearch(artifact: ArtifactSummary, query: string): boolean {
+function matchesSearch(artifact: RegistryArtifact, query: string): boolean {
   const needle = query.toLowerCase();
   const searchableFields = [
     artifact.id,
@@ -141,7 +71,7 @@ function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-function printList(artifacts: ArtifactSummary[]): void {
+function printList(artifacts: RegistryArtifact[]): void {
   if (artifacts.length === 0) {
     console.log('Aucun artefact dans le catalogue.');
     return;
@@ -220,7 +150,8 @@ export async function runCatalogCli(args: string[]): Promise<void> {
     );
   }
 
-  const { artifacts } = await readCatalogIndex();
+  const { index } = await resolveCatalogIndex();
+  const { artifacts } = index;
   if (command === 'list') {
     const results = artifacts.map(toSummary);
     if (json) printJson(results);
@@ -266,7 +197,7 @@ export async function runCatalogCli(args: string[]): Promise<void> {
   else printArtifactDetails(artifact);
 }
 
-function printArtifactDetails(artifact: ArtifactSummary): void {
+function printArtifactDetails(artifact: RegistryArtifact): void {
   console.log(`${artifact.name} (${artifact.id})`);
   console.log(`Type : ${artifact.type}`);
   console.log(`Description : ${artifact.description}`);

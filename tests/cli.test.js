@@ -4,19 +4,35 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test from 'node:test';
+import test, { after } from 'node:test';
+import { createRegistryFixture } from './registry-fixture.js';
 
 const cliPath = fileURLToPath(
   new URL('../src/lufa-command.ts', import.meta.url),
 );
 const indexPath = new URL('../generated/catalog-index.json', import.meta.url);
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+const registry = await createRegistryFixture();
+const cacheDirectory = await mkdtemp(path.join(tmpdir(), 'lufa-cli-cache-'));
+
+after(async () => {
+  await registry.close();
+  await rm(cacheDirectory, { recursive: true, force: true });
+});
 
 function runCli(args, cwd) {
   return spawnSync(
     process.execPath,
     ['--experimental-strip-types', cliPath, ...args],
-    { cwd, encoding: 'utf8' },
+    {
+      cwd,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        LUFA_REGISTRY_URL: registry.url,
+        LUFA_CACHE_DIR: cacheDirectory,
+      },
+    },
   );
 }
 
@@ -59,11 +75,19 @@ test('npm silent invocation produces pipeline-safe JSON without banners', () => 
   const result = spawnSync(
     'npm',
     ['run', '--silent', 'lufa', '--', 'list', '--json'],
-    { cwd: projectRoot, encoding: 'utf8' },
+    {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        LUFA_REGISTRY_URL: registry.url,
+        LUFA_CACHE_DIR: cacheDirectory,
+      },
+    },
   );
 
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stderr, '');
+  assert.match(result.stderr, /Index du registre : distant actualisé/);
   assert.match(result.stdout, /^\[/);
   assert.doesNotMatch(result.stdout, /^>/);
   assert.ok(Array.isArray(JSON.parse(result.stdout)));
