@@ -4,7 +4,7 @@
 
 **Parcours réussi sur deux projets consommateurs temporaires isolés, sur macOS.** Le tarball local `lufa-ai@0.1.0` a été installé sans source du dépôt dans chacun des projets. Le registre public, le parcours installation → mise à jour, le cache hors ligne et la découverte du skill par les deux CLI ont été testés. Les empreintes SHA-256 des fichiers gérés correspondent au verrou ; le fichier devenu orphelin après mise à jour reste présent.
 
-L’étape 8 est **Validée** après revue indépendante. Ce pilote ne déclenche pas de publication npm. Le MVP est prêt à être publié techniquement, mais le paquet public et son nom restent à confirmer avant toute action de publication.
+L’étape 8 est **Validée** après revue indépendante. Ce rapport consigne le pilote effectué avec un tarball local, avant la clarification du parcours de distribution Git. Il ne valide pas l’installation depuis GitHub ; ce parcours a ensuite été testé séparément avec un dépôt Git fixture local (voir le statut d’implémentation). Aucune publication npm n’a eu lieu ni n’est requise.
 
 ## Versions et provenance
 
@@ -172,4 +172,4 @@ Pour vérifier la découverte des CLI, lancer chaque commande depuis le projet c
 - Le test OpenCode confirme le chargement par son outil natif, pas l’exécution ni la qualité comportementale du skill.
 - Le pilote utilise le tarball local non publié ; il ne valide pas l’installation depuis npm, un processus de publication, ni un déploiement.
 - Les authentifications locales nécessaires aux CLI étaient disponibles ; aucune valeur de secret n’a été affichée ou enregistrée.
-- Résultat : **parcours pilote favorable, étape 8 Validée après revue indépendante**. La publication npm et toute décision d’élargissement restent hors de ce pilote ; aucune action de publication n’a eu lieu.
+- Résultat : **parcours pilote favorable, étape 8 Validée après revue indépendante**. La distribution Git n’était pas couverte à la date du pilote ; elle est validée séparément par le smoke Git source décrit dans le statut. Aucune publication npm n’a eu lieu et elle n’est pas requise pour le parcours retenu.

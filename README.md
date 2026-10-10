@@ -8,32 +8,38 @@ Catalogue d’artefacts pour agents IA, avec une première version centrée sur 
 
 ## Utilisation sans installation globale
 
-Le paquet npm `lufa-ai` n’est pas encore publié. Après publication, il ne sera
-pas nécessaire d’installer Lufa globalement ni de l’ajouter aux dépendances du
-projet. Depuis le projet consommateur, lancez la CLI ponctuellement avec `npx`
-ou `pnpm dlx` :
+Le paquet n’a pas besoin d’être publié sur npm : le parcours recommandé récupère
+la CLI directement depuis le dépôt GitHub public. Depuis le projet consommateur,
+lancez-la ponctuellement avec `npx` :
 
 ```sh
-npx --yes --package=lufa-ai lufa list
-npx --yes --package=lufa-ai lufa search <terme>
-npx --yes --package=lufa-ai lufa show <id>
-npx --yes --package=lufa-ai lufa install <id>[@version]
-npx --yes --package=lufa-ai lufa installed
-npx --yes --package=lufa-ai lufa outdated
-npx --yes --package=lufa-ai lufa update [id]
+npx --yes --package=github:grasdouble/Lufa-AI#main lufa list
+npx --yes --package=github:grasdouble/Lufa-AI#main lufa search <terme>
+npx --yes --package=github:grasdouble/Lufa-AI#main lufa show <id>
+npx --yes --package=github:grasdouble/Lufa-AI#main lufa install <id>[@version]
+npx --yes --package=github:grasdouble/Lufa-AI#main lufa installed
+npx --yes --package=github:grasdouble/Lufa-AI#main lufa outdated
+npx --yes --package=github:grasdouble/Lufa-AI#main lufa update [id]
 ```
 
-Avec pnpm, remplacez `npx --yes` par `pnpm dlx --yes` :
+Avec pnpm, la syntaxe équivalente est `pnpm dlx` :
 
 ```sh
-pnpm dlx --yes --package=lufa-ai lufa list
-pnpm dlx --yes --package=lufa-ai lufa install hello-agent
+pnpm dlx --yes --package=github:grasdouble/Lufa-AI#main lufa list
+pnpm dlx --yes --package=github:grasdouble/Lufa-AI#main lufa install hello-agent
 ```
 
-`npx`/`pnpm dlx` téléchargent le paquet CLI dans le cache du gestionnaire de
-paquets et lancent `lufa` sans ajouter de dépendance au projet. Node.js 24+ et
-npm ou pnpm sont requis. Ces exemples seront utilisables dès que `lufa-ai` sera
-publié ; actuellement, le paquet npm n’est pas encore disponible.
+`main` suit le développement et peut changer. Pour une exécution reproductible,
+remplacez `main` par un tag ou un SHA immuable, par exemple
+`github:grasdouble/Lufa-AI#<tag-ou-SHA>`. Le dépôt versionne le JavaScript
+précompilé sous `dist/` : npx et pnpm dlx lancent directement ce binaire, sans
+compiler les sources chez le consommateur et sans hook `prepare` ou `prepack`.
+Les dépendances runtime normales sont téléchargées et mises en cache par le
+gestionnaire. Git, Node.js 24+ et le gestionnaire utilisé (`npm`/`npx` ou `pnpm`)
+sont requis. Aucun registre npm public ni publication npm n’est nécessaire.
+Le smoke Git utilise un dépôt fixture local contenant `dist/` mais pas `src/` ;
+il vérifie les deux gestionnaires sans modifier le manifeste consommateur. Il ne
+garantit pas la disponibilité future de GitHub ou du réseau.
 
 Le MVP sait installer des **skills** dans `.agents/skills/`. Les commandes
 gardent une interface par identifiant d’artefact, mais les agents, instructions
@@ -54,10 +60,9 @@ dans `lufa.lock.json`, à versionner avec le projet. Leur découverte dans
 v2.0.26 ; elle n’est pas garantie pour les futures versions, les clients IDE ou
 les services cloud. Les options `--json` fournissent une sortie JSON pour les
 commandes qui affichent des résultats ou un plan. `lufa update` met à jour les
-skills du projet, pas la CLI. Si vous avez choisi une installation globale,
-`npm update --global lufa-ai` met à jour la CLI ; avec `npx`/`pnpm dlx`, le
-gestionnaire récupère la version publiée selon son cache et ses règles de
-résolution.
+skills du projet, pas la CLI. Avec `npx`/`pnpm dlx`, la version de la CLI est
+déterminée par la référence Git choisie ; relancez la commande avec le SHA/tag
+souhaité pour sélectionner une autre version.
 
 Les payloads sont récupérés selon le contexte depuis le cache de contenus
 SHA-256, le registre configuré (GitHub Pages par défaut, remplaçable via
@@ -73,6 +78,7 @@ Prérequis : Node.js 24 ou ultérieur et npm. À la racine du dépôt :
 
 ```sh
 npm ci
+npm run hooks:install # une fois par clone, pour activer le hook de commit local
 npm run format
 npm run lint
 npm run typecheck
@@ -81,11 +87,21 @@ npm run check
 ```
 
 `npm run check` combine les contrôles statiques (formatage, lint et types) et les
-vérifications de plateforme (catalogue, tests et smoke du paquet) utilisés par la
-CI. Le typecheck dédié `tsc --noEmit` est exécuté une seule fois dans
-`check:quality`, sur Ubuntu. En revanche, `check:platform` relance volontairement
-les builds TypeScript via `catalog:check` et le hook `prepack`, afin de valider la
-compilation et le paquet sur chaque système d’exploitation.
+vérifications de plateforme (concordance du build versionné, catalogue, tests et
+smoke du paquet) utilisés par la CI. `build:check` compile dans un dossier
+temporaire et compare exactement fichiers et contenus avec `dist/`, y compris
+les fichiers manquants ou supplémentaires. Le typecheck dédié `tsc --noEmit` est
+exécuté une seule fois dans `check:quality` ; `check:platform` vérifie aussi le
+build compilé sur chaque système d’exploitation.
+
+Le hook Git n’est pas activé automatiquement par un clone. Chaque mainteneur doit
+exécuter `npm run hooks:install` une fois dans son clone ; cela configure
+localement `core.hooksPath=.githooks`. Avant un commit, le hook refuse les sources
+de build modifiées mais non stagées, compile TypeScript puis stage les créations,
+modifications et suppressions de `dist/` dans le commit. Il ne lance pas les
+tests. Ce mécanisme n’est pas garanti pour un commit créé depuis l’interface web,
+un clone sans hook installé ou un commit qui contourne les hooks ; la CI bloque
+alors toute PR dont `dist/` ne correspond pas au build.
 `npm run format` applique le formatage ; `npm run format:check` le vérifie sans
 modifier les fichiers.
 
@@ -151,14 +167,18 @@ au paquet. Chaque payload est vérifié par empreinte SHA-256 avant toute écrit
 Hors ligne, seuls les octets exacts présents dans le cache ou l’instantané inclus
 au paquet peuvent être installés.
 
-Le paquet npm prévu est provisoirement nommé `lufa-ai` (aucune publication n’a
-été effectuée ; la disponibilité du nom peut évoluer). Pour compiler et créer un
-tarball local :
+Le nom interne du paquet npm est `lufa-ai` (aucune publication n’a été effectuée
+ni n’est nécessaire au parcours documenté). Pour compiler et créer un tarball
+local :
 
 ```sh
-npm run build
 npm pack
 ```
+
+`dist/` est versionné et inclus tel quel par `npm pack` ; l’empaquetage ne compile
+pas le paquet. Pour packer des changements locaux avant leur commit, exécutez
+`npm run build` explicitement. Le hook mainteneur le fera automatiquement au
+commit si les sources de build sont stagées.
 
 Pour prévisualiser son installation dans un préfixe npm isolé, après `npm pack` :
 
@@ -176,6 +196,19 @@ pack/install de bout en bout dans un répertoire temporaire, sans publier :
 
 ```sh
 npm run pack:smoke
+```
+
+Pour reproduire séparément le parcours Git source avec `npx` et `pnpm dlx`, le
+smoke crée un dépôt Git fixture temporaire à partir des sources présentes,
+l’installe avec `dist/` versionné et sans `src/` depuis chacun des deux runners
+dans un consommateur isolé, puis exécute `list`, `show` et `install`. Il vérifie
+que `prepare`/`prepack` sont absents et que le manifeste consommateur reste
+inchangé. Il nécessite Git, Node.js 24+, npm et pnpm, et n’est volontairement
+pas inclus dans `npm run check` (résolution Git et installation des dépendances
+prennent plus de temps) :
+
+```sh
+npm run smoke:git-source
 ```
 
 Depuis le dépôt, les commandes restent disponibles via npm :

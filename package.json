@@ -34,9 +34,11 @@
     "format": "prettier --plugin prettier-plugin-astro --write \"src/**/*.{js,ts}\" \"tests/**/*.js\" \"scripts/**/*.js\" \"*.js\" \"*.json\" \"schemas/**/*.json\" \"catalog/**/*.{json,md}\" \"generated/**/*.json\" \"*.md\" \".github/**/*.yml\" \"docs/adr/**/*.md\" \"web/**/*.{astro,js,css,mjs}\"",
     "format:check": "prettier --plugin prettier-plugin-astro --check \"src/**/*.{js,ts}\" \"tests/**/*.js\" \"scripts/**/*.js\" \"*.js\" \"*.json\" \"schemas/**/*.json\" \"catalog/**/*.{json,md}\" \"generated/**/*.json\" \"*.md\" \".github/**/*.yml\" \"docs/adr/**/*.md\" \"web/**/*.{astro,js,css,mjs}\"",
     "lint": "eslint .",
-    "build": "tsc",
+    "build": "node scripts/build.js",
+    "build:check": "node scripts/check-build.js",
     "typecheck": "tsc --noEmit",
-    "prepack": "npm run build",
+    "hooks:install": "git config --local core.hooksPath .githooks",
+    "smoke:git-source": "node scripts/git-source-smoke.js",
     "test": "npm run web:build && npm run web:build:pages && npm run web:test-fixture && node --experimental-strip-types --test",
     "catalog:validate": "npm run build && node dist/catalog-command.js validate",
     "catalog:build": "npm run build && node dist/catalog-command.js build",
@@ -49,7 +51,7 @@
     "web:build:pages": "npm run registry:build && node scripts/build-pages.js",
     "web:test-fixture": "astro build --root tests/fixtures/web-security",
     "check:quality": "npm run format:check && npm run lint && npm run typecheck",
-    "check:platform": "npm run catalog:check && npm test && npm run pack:smoke",
+    "check:platform": "npm run build:check && npm run catalog:check && npm test && npm run pack:smoke",
     "check": "npm run check:quality && npm run check:platform"
   },
   "dependencies": {

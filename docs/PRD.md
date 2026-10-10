@@ -1,7 +1,7 @@
 # PRD — Catalogue Lufa AI
 
 - **Statut :** validé — cible Copilot / OpenCode
-- **Version :** 0.4
+- **Version :** 0.5
 - **Date :** 2026-10-10
 
 ## 1. Résumé
@@ -128,7 +128,7 @@ La CLI doit fournir, au minimum, les capacités suivantes :
 
 La CLI doit fonctionner depuis la racine d’un projet, ne pas nécessiter de compte pour consulter et installer les artefacts publics, et proposer un mode non interactif explicite pour l’automatisation.
 
-Le parcours d’utilisation public ne doit pas exiger l’installation préalable de la CLI : l’utilisateur peut la lancer à la demande via `npx --package=lufa-ai` ou `pnpm dlx --package=lufa-ai`. Le gestionnaire de paquets peut télécharger et mettre en cache le paquet CLI dans son propre cache, mais aucune commande d’installation globale ni ajout de dépendance au projet consommateur n’est requis. Une installation globale reste une option, pas un prérequis.
+Le parcours d’utilisation public est **zero-install** : l’utilisateur lance la CLI à la demande depuis le dépôt Git via `npx` ou `pnpm dlx`, puis le binaire JavaScript `lufa` précompilé et versionné sous `dist/` (syntaxes exactes dans le README). `main` est la cible de développement ; un tag ou SHA de commit immuable est recommandé pour la reproductibilité. Git et Node.js 24+ sont requis. Le gestionnaire télécharge et met en cache le paquet et ses dépendances runtime ; aucune commande d’installation globale, compilation TypeScript ni ajout de dépendance au projet consommateur n’est requis. Les mainteneurs activent localement le hook pre-commit pour reconstruire et inclure `dist/` ; la CI vérifie que le build versionné est à jour, car les hooks ne sont pas exécutés par tous les chemins de commit. Un registre npm public et une publication npm ne sont pas requis. La distribution Git doit être validée avec npm/npx et pnpm/dlx et dépend de l’accès au dépôt Git.
 
 ### 7.3 Installation et suivi dans le projet consommateur
 
@@ -171,7 +171,7 @@ Le catalogue ne doit pas supposer que chaque artefact est un skill. Chaque type 
 - Un catalogue public initial de skills.
 - Des métadonnées et un versionnement par artefact.
 - Une CLI installable permettant liste, recherche, détail, installation, liste des installations, vérification des mises à jour et mise à jour.
-- Des invocations documentées via `npx` et `pnpm dlx`, utilisables depuis un projet consommateur sans installation globale de Lufa ni modification de ses dépendances.
+- Des invocations documentées depuis le dépôt Git/tag via `npx` et `pnpm dlx`, utilisables depuis un projet consommateur sans registre npm public, installation globale de Lufa ni modification de ses dépendances.
 - Un manifeste local de suivi dans les projets consommateurs.
 - Détection des modifications locales et aperçu avant mise à jour.
 - Un catalogue web consultable et des pages de détail.
@@ -239,7 +239,7 @@ Les décisions ci-dessous ferment les questions ouvertes du cadrage MVP. Elles p
 
 5. **Conflits : arrêt sûr par défaut.** Si un fichier géré a été modifié localement, la mise à jour s’arrête pour cet artefact et affiche les différences ; elle ne remplace rien silencieusement. L’utilisateur peut conserver sa version, ou demander explicitement le remplacement avec une option de force ; dans ce dernier cas, la CLI sauvegarde le fichier local avant remplacement. Si un fichier disparaît de la nouvelle version, la CLI ne le supprime pas automatiquement : elle signale le fichier devenu orphelin et laisse sa suppression à l’utilisateur. Aucune fusion automatique n’est incluse au MVP.
 
-6. **Plateformes et invocation : macOS, Linux et Windows via Node.js 24+.** Le paquet npm est lancé à la demande via `npx` ou `pnpm dlx` ; une installation globale est facultative. La distribution native sans Node.js reste différée. Le mode d’installation globale, s’il est proposé, ne constitue pas le parcours recommandé ni un prérequis.
+6. **Plateformes et invocation : macOS, Linux et Windows via Node.js 24+.** Le paquet est lancé à la demande depuis le dépôt Git via `npx` ou `pnpm dlx`, avec `lufa` comme binaire JavaScript précompilé. Les références de tag/SHA sont recommandées pour la reproductibilité ; Git est requis. Le gestionnaire met le paquet et ses dépendances runtime en cache, sans compilation chez le consommateur, installation globale ni ajout de dépendance. Un registre npm public / une publication npm ne sont pas requis. La distribution native sans Node.js reste différée. Une installation globale facultative ne constitue pas le parcours recommandé ni un prérequis.
 
 7. **Accès : catalogue public uniquement au lancement.** La consultation et l’installation d’artefacts publics ne nécessitent pas de compte. Les catalogues privés, l’authentification et les permissions d’équipe sont différés.
 

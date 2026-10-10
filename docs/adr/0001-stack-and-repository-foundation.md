@@ -35,9 +35,17 @@
    par la CLI et le site ; l’index publié sera un artefact statique, distinct
    des sources maintenues. Ces outils et formats seront implémentés à l’étape 2,
    pas dans cet ADR.
-4. **CLI :** paquet npm public avec commande `bin`, à publier après validation
-   du parcours et de la portabilité. Cela évite de maintenir des binaires par
-   plateforme pour le MVP.
+4. **CLI :** paquet Node avec commande `bin`, lancé à la demande depuis le dépôt
+   GitHub via `npx --package=github:grasdouble/Lufa-AI#main` ou `pnpm dlx`, avec
+   `dist/` JavaScript précompilé et versionné dans Git. Les tags/SHAs immuables
+   sont recommandés pour la reproductibilité. Le hook mainteneur pre-commit,
+   activé une fois par clone, régénère puis stage `dist/` ; la CI compare ce
+   dossier au build courant, car les hooks ne sont pas garantis pour tous les
+   commits. Aucun hook `prepare`/`prepack` ne compile une dépendance Git chez le
+   consommateur. Il n’est nécessaire ni de publier le paquet sur un registre npm
+   public, ni de l’installer globalement ou comme dépendance du consommateur ;
+   Git et Node.js 24+ sont requis. Cette option évite de maintenir des binaires
+   par plateforme pour le MVP.
 5. **Site et hébergement :** Astro avec génération statique, publié sur GitHub
    Pages depuis le dépôt. Pas de serveur applicatif nécessaire au catalogue en
    lecture seule. Le déploiement sera réalisé à l’étape 7.
@@ -48,9 +56,10 @@
 ## Conséquences et points à confirmer
 
 Ce choix minimise les langages et l’infrastructure, et permet de partager le
-format de données entre les surfaces. Il retient npm et GitHub Pages comme
-cibles de publication : confirmer leur adéquation au compte/projet avant toute
-publication (étape 7). Réexaminer la distribution npm si les retours du pilote
-montrent qu’une installation sans Node.js est indispensable. La validation de
-la structure seule ne prouvera jamais la sûreté ni la qualité des skills ; la
-revue humaine et les tests documentés de compatibilité restent nécessaires.
+format de données entre les surfaces. GitHub est la source de distribution de la
+CLI ; GitHub Pages héberge le catalogue statique. L’installation à la demande
+met le paquet en cache sans inscrire Lufa dans les dépendances du consommateur.
+Aucune publication npm publique n’est requise ni prévue pour ce parcours. La
+distribution native sans Node.js reste différée. La validation de la structure
+seule ne prouvera jamais la sûreté ni la qualité des skills ; la revue humaine et
+les tests documentés de compatibilité restent nécessaires.

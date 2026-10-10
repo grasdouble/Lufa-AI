@@ -130,17 +130,17 @@ Le plan ne fixe pas encore de langage, framework ou fournisseur d’hébergement
 - Finaliser le mécanisme de distribution de la CLI et les instructions d’installation / désinstallation.
 - Ajouter les validations de publication dans la CI et documenter le processus de revue mainteneur.
 
-**Validation / porte de sortie :** smoke d’installation du tarball CLI et tests d’exécution verts sur macOS/Linux/Windows ; consultation et réinstallation hors ligne des versions en cache ; registre et site effectivement servis sous l’URL GitHub Pages ; CI bloquant les données invalides. La publication npm du paquet est réservée à la décision de lancement de l’étape 8 et n’est pas déclenchée ici.
+**Validation / porte de sortie :** smoke d’installation du tarball CLI et tests d’exécution verts sur macOS/Linux/Windows ; smoke reproductible d’une dépendance Git source dans un consommateur vide via npm/npx et pnpm/dlx ; consultation et réinstallation hors ligne des versions en cache ; registre et site effectivement servis sous l’URL GitHub Pages ; CI bloquant les données invalides. La CLI est distribuée depuis le dépôt Git/tag sans registre npm public ; aucune publication npm n’est requise ni déclenchée.
 
 Cette étape est volontairement découpée en trois livraisons révisables afin d’éviter un diff transversal trop large :
 
-1. **7.1 — Paquet CLI et matrice CI :** compiler et empaqueter la CLI sans la publier, installer le tarball dans un projet temporaire, tester son exécutable et configurer les jobs macOS/Linux/Windows.
+1. **7.1 — Paquet CLI et matrice CI :** versionner le JavaScript TypeScript compilé sous `dist/`, empaqueter la CLI sans la publier, installer le tarball dans un projet temporaire, tester son exécutable, vérifier une dépendance Git fixture sans `src/` et sans compilation `prepare`/`prepack` via npm/npx et pnpm/dlx, et configurer les jobs macOS/Linux/Windows. Le hook mainteneur pre-commit génère/stage `dist/` et `build:check` CI détecte sorties manquantes, supplémentaires ou périmées. Le dépôt Git est le parcours de distribution ; un registre npm public n’est pas requis.
 2. **7.2 — Publication statique :** rendre le site et les données du catalogue compatibles avec le préfixe GitHub Pages, ajouter le workflow de déploiement et vérifier localement les routes/assets sous ce préfixe. Le workflow n’est pas déclenché par l’implémentation.
 3. **7.3 — Registre distant et cache**, en deux petites tranches :
    - **7.3a — Index distant :** rafraîchir l’index pour liste/recherche/détail/updates, le mettre en cache avec indication explicite lorsqu’il est périmé, et retomber sur cache/instantané du paquet hors ligne. Tester avec un serveur HTTP de fixture.
    - **7.3b — Fichiers distants :** télécharger à la demande les fichiers de la version choisie, vérifier leur empreinte publiée, les mettre en cache et permettre une réinstallation hors ligne uniquement si le contenu exact est déjà présent. Tester checksum, cache, panne réseau et absence d’écriture dans le projet avant vérification.
 
-Chaque livraison a son propre petit diff, sa revue indépendante et son commit. L’étape 7 est **Validée** quand ces portes de sortie sont démontrées ; les actions de publication npm restent explicitement à la décision de lancement de l’étape 8.
+Chaque livraison a son propre petit diff, sa revue indépendante et son commit. L’étape 7 est **Validée** quand ces portes de sortie sont démontrées. Aucune action de publication npm n’est nécessaire ou prévue pour distribuer la CLI depuis Git ; toute évolution de cette décision nécessiterait un choix explicite distinct.
 
 ### Étape 8 — Pilote et décision de lancement
 
