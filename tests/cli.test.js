@@ -12,6 +12,7 @@ const cliPath = fileURLToPath(
 );
 const indexPath = new URL('../generated/catalog-index.json', import.meta.url);
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+const npmCli = process.env.npm_execpath;
 const registry = await createRegistryFixture();
 const cacheDirectory = await mkdtemp(path.join(tmpdir(), 'lufa-cli-cache-'));
 
@@ -72,9 +73,11 @@ test('list prints indexed artifacts and stable JSON summaries without project wr
 });
 
 test('npm silent invocation produces pipeline-safe JSON without banners', () => {
+  assert.ok(npmCli, 'Lancer ce test via `npm test`.');
+
   const result = spawnSync(
-    'npm',
-    ['run', '--silent', 'lufa', '--', 'list', '--json'],
+    process.execPath,
+    [npmCli, 'run', '--silent', 'lufa', '--', 'list', '--json'],
     {
       cwd: projectRoot,
       encoding: 'utf8',
