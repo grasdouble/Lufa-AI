@@ -18,7 +18,7 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 |---|---|---|---|
 | 0 | Spike de compatibilité `.agents/skills/` | Validée | Revue indépendante positive ; résultats bornés à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26. |
 | 1 | Décisions techniques et socle du dépôt | Validée | Revue indépendante positive ; job CI équivalent passé localement sous Node 24.20.0. CI distante non exécutée. |
-| 2 | Contrat et premier catalogue valide | À faire | — |
+| 2 | Contrat et premier catalogue valide | Validée | Revue indépendante positive ; schéma, sécurité des chemins, preuves et index déterministe couverts par 16 tests sous Node 24.20.0. |
 | 3 | CLI de consultation du catalogue | À faire | — |
 | 4 | Installation initiale et verrouillage | À faire | — |
 | 5 | Inventaire et mises à jour sûres | À faire | — |
@@ -26,9 +26,8 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 7 | Publication, cache et portabilité | À faire | — |
 | 8 | Pilote et décision de lancement | À faire | — |
 
-**Dernière étape validée :** étape 0 — Spike de compatibilité `.agents/skills/`.
-**Dernière étape validée :** étape 1 — Décisions techniques et socle du dépôt.
-**Prochaine étape :** étape 2 — Contrat et premier catalogue valide.
+**Dernière étape validée :** étape 2 — Contrat et premier catalogue valide.
+**Prochaine étape :** étape 3 — CLI de consultation du catalogue.
 
 ## Journal des validations
 
@@ -53,11 +52,11 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 
 ### Étape 2 — Contrat et premier catalogue valide
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation finale :** en attente
+- **État :** Validée
+- **Résumé / livrable :** Schéma JSON, contenu pilote, validation automatique et index déterministe.
+- **Vérifications effectuées :** `npm ci` puis `npm run check` sous Node.js 24.20.0 ; formatage, ESLint, TypeScript, validation du catalogue et de l’index déterministe, 16 tests passés ; 0 vulnérabilité signalée par `npm ci`. Les tests couvrent notamment les dates impossibles, les symlinks de racine et d’artefact, l’ordre ASCII / accentué et le rejet des preuves `verified` blanches.
+- **Décision / points à corriger :** Type (`skill`) et environnements (`github-copilot`, `opencode`) sont distincts. Les compatibilités du pilote restent `declared` avec avertissement : le spike existant ne teste pas ce skill pilote. Les dates UTC sont validées comme dates calendaires réelles ; les racines et entrées catalogue symboliques sont rejetées explicitement. Les tris de l’index utilisent SemVer ou l’ordre Unicode par points de code, sans `localeCompare`. Les champs `testedVersion`, `method` et `reference` d’une preuve `verified` doivent contenir au moins un caractère non blanc ; les versions SemVer sont triées décroissantes ; sources et destinations refusent chemins absolus, traversées et séparateurs Windows, et les liens symboliques hors paquet sont rejetés. Aucune preuve de compatibilité propre au pilote n’a été ajoutée.
+- **Validation finale :** validée par le coordinateur après revue indépendante.
 
 ### Étape 3 — CLI de consultation du catalogue
 
