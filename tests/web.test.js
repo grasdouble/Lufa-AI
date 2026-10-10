@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { access, readFile, realpath, stat } from 'node:fs/promises';
+import {
+  access,
+  lstat,
+  readFile,
+  readdir,
+  realpath,
+  stat,
+} from 'node:fs/promises';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import test from 'node:test';
@@ -11,8 +18,10 @@ import {
 
 const projectRoot = process.cwd();
 const siteRoot = path.join(projectRoot, 'web', 'dist');
-const readPage = (relativePath) =>
-  readFile(path.join(siteRoot, relativePath), 'utf8');
+const pagesSiteRoot = path.join(projectRoot, 'web', 'dist-pages');
+const pagesBase = '/Lufa-AI';
+const readPage = (relativePath, root = siteRoot) =>
+  readFile(path.join(root, relativePath), 'utf8');
 
 function sendText(response, statusCode, text) {
   response.writeHead(statusCode, {
@@ -21,7 +30,7 @@ function sendText(response, statusCode, text) {
   response.end(text);
 }
 
-async function serveBuiltCatalog(request, response, root) {
+async function serveBuiltCatalog(request, response, root, basePath = '') {
   if (request.method !== 'GET') {
     sendText(response, 405, 'Method not allowed');
     return;
@@ -39,6 +48,14 @@ async function serveBuiltCatalog(request, response, root) {
   if (!pathname.startsWith('/') || pathname.startsWith('//')) {
     sendText(response, 400, 'Invalid path');
     return;
+  }
+
+  if (basePath) {
+    if (pathname !== basePath && !pathname.startsWith(`${basePath}/`)) {
+      sendText(response, 404, 'Not found');
+      return;
+    }
+    pathname = pathname.slice(basePath.length) || '/';
   }
 
   const segments = pathname.split('/').filter(Boolean);
@@ -83,9 +100,19 @@ async function serveBuiltCatalog(request, response, root) {
       return;
     }
 
-    const html = await readFile(resolvedPath);
-    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-    response.end(html);
+    const contentTypes = {
+      '.css': 'text/css; charset=utf-8',
+      '.html': 'text/html; charset=utf-8',
+      '.js': 'text/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
+      '.md': 'text/markdown; charset=utf-8',
+    };
+    const contents = await readFile(resolvedPath);
+    response.writeHead(200, {
+      'content-type':
+        contentTypes[path.extname(resolvedPath)] ?? 'application/octet-stream',
+    });
+    response.end(contents);
   } catch {
     sendText(response, 404, 'Not found');
   }
@@ -204,6 +231,180 @@ test('generated internal links and accessibility references resolve', async () =
   assert.match(pages[1][1], /aria-label="Fil d’Ariane"/);
   assert.match(pages[1][1], /aria-current="page"/);
   assert.match(pages[1][1], /Aller au contenu/);
+});
+
+test('GitHub Pages build prefixes routes and every bundled asset', async () => {
+  const home = await readPage('index.html', pagesSiteRoot);
+  const detail = await readPage(
+    'artifacts/hello-agent/index.html',
+    pagesSiteRoot,
+  );
+  const pages = [
+    ['index.html', home],
+    ['artifacts/hello-agent/index.html', detail],
+  ];
+
+  assert.match(home, /href="\/Lufa-AI\/"/);
+  assert.match(home, /href="\/Lufa-AI\/artifacts\/hello-agent\/"/);
+  assert.match(detail, /href="\/Lufa-AI\/"/);
+  assert.doesNotMatch(home, /href="\/(?:artifacts|_astro)\//);
+
+  for (const [pagePath, html] of pages) {
+    for (const [, value] of html.matchAll(/\b(?:href|src)="([^"]+)"/g)) {
+      if (value.startsWith('/') && !value.startsWith('//')) {
+        assert.ok(
+          value === pagesBase || value.startsWith(`${pagesBase}/`),
+          `${pagePath} URL uses the Pages base: ${value}`,
+        );
+        const pathname = decodeURIComponent(value.split(/[?#]/, 1)[0]);
+        const relativePath = pathname
+          .slice(pagesBase.length)
+          .replace(/^\//, '');
+        const target =
+          !relativePath || relativePath.endsWith('/')
+            ? path.join(pagesSiteRoot, relativePath, 'index.html')
+            : path.join(pagesSiteRoot, relativePath);
+        await access(target);
+      }
+      if (value.startsWith('/Lufa-AI/_astro/')) {
+        const assetPath = value.slice(pagesBase.length + 1);
+        await access(path.join(pagesSiteRoot, assetPath));
+      }
+    }
+  }
+
+  assert.match(home, /(?:href|src)="\/Lufa-AI\/_astro\/[^" ]+\.css"/);
+  assert.match(home, /<script type="module">/);
+
+  const index = JSON.parse(
+    await readFile(
+      path.join(projectRoot, 'generated', 'catalog-index.json'),
+      'utf8',
+    ),
+  );
+  const expectedRoutes = [
+    'index.html',
+    ...index.artifacts.map((artifact) => `artifacts/${artifact.id}/index.html`),
+  ];
+  const actualRoutes = [];
+  async function collectHtml(directory, prefix = '') {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const relativePath = path.posix.join(prefix, entry.name);
+      if (entry.isDirectory()) {
+        await collectHtml(path.join(directory, entry.name), relativePath);
+      } else if (entry.name.endsWith('.html')) {
+        actualRoutes.push(relativePath);
+      }
+    }
+  }
+  await collectHtml(pagesSiteRoot);
+  assert.deepEqual(actualRoutes.sort(), expectedRoutes.sort());
+});
+
+test('static registry export contains exactly the validated index and payload files', async () => {
+  const registryRoot = path.join(siteRoot, 'registry');
+  const indexPath = path.join(registryRoot, 'catalog-index.json');
+  const index = await readFile(indexPath, 'utf8');
+  const committedIndex = await readFile(
+    path.join(projectRoot, 'generated', 'catalog-index.json'),
+    'utf8',
+  );
+  assert.equal(index, committedIndex);
+
+  const { artifacts } = JSON.parse(index);
+  const expectedPaths = new Set(['catalog-index.json']);
+  for (const artifact of artifacts) {
+    for (const version of artifact.versions) {
+      for (const file of version.files) {
+        const relativePath = path.posix.join('catalog', artifact.id, file.path);
+        expectedPaths.add(relativePath);
+        const published = await readFile(
+          path.join(registryRoot, ...relativePath.split('/')),
+        );
+        const source = await readFile(
+          path.join(
+            projectRoot,
+            'catalog',
+            artifact.id,
+            ...file.path.split('/'),
+          ),
+        );
+        assert.deepEqual(published, source, `${relativePath} matches source`);
+      }
+    }
+  }
+
+  const actualPaths = [];
+  async function collectFiles(directory, prefix = '') {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const relativePath = path.posix.join(prefix, entry.name);
+      const entryPath = path.join(directory, entry.name);
+      assert.equal((await lstat(entryPath)).isSymbolicLink(), false);
+      if (entry.isDirectory()) {
+        await collectFiles(entryPath, relativePath);
+      } else {
+        actualPaths.push(relativePath);
+      }
+    }
+  }
+  await collectFiles(registryRoot);
+  assert.deepEqual(actualPaths.sort(), [...expectedPaths].sort());
+  assert.ok(!actualPaths.some((entry) => entry.endsWith('artifact.json')));
+});
+
+test('prefixed Pages routes serve the site, assets, index, and version files', async () => {
+  const root = await realpath(pagesSiteRoot);
+  const server = createServer((request, response) => {
+    void serveBuiltCatalog(request, response, root, pagesBase);
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address === 'object');
+  const origin = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const homeResponse = await fetch(`${origin}${pagesBase}/`);
+    assert.equal(homeResponse.status, 200);
+    const home = await homeResponse.text();
+    assert.match(home, /Lufa AI/);
+
+    const stylesheet = /href="([^"]+\.css)"/.exec(home)?.[1];
+    assert.ok(stylesheet?.startsWith(`${pagesBase}/_astro/`));
+    const assetResponse = await fetch(`${origin}${stylesheet}`);
+    assert.equal(assetResponse.status, 200);
+    assert.match(assetResponse.headers.get('content-type'), /text\/css/);
+
+    const detailResponse = await fetch(
+      `${origin}${pagesBase}/artifacts/hello-agent/`,
+    );
+    assert.equal(detailResponse.status, 200);
+    assert.match(await detailResponse.text(), /Hello Agent/);
+
+    const indexResponse = await fetch(
+      `${origin}${pagesBase}/registry/catalog-index.json`,
+    );
+    assert.equal(indexResponse.status, 200);
+    assert.match(
+      indexResponse.headers.get('content-type'),
+      /application\/json/,
+    );
+
+    const payloadResponse = await fetch(
+      `${origin}${pagesBase}/registry/catalog/hello-agent/versions/1.2.0/SKILL.md`,
+    );
+    assert.equal(payloadResponse.status, 200);
+    assert.match(await payloadResponse.text(), /When asked to greet/);
+
+    assert.equal(
+      (await fetch(`${origin}/registry/catalog-index.json`)).status,
+      404,
+    );
+  } finally {
+    const closed = once(server, 'close');
+    server.close();
+    await closed;
+  }
 });
 
 test('unsafe evidence references are rendered as text, never executable links', async () => {

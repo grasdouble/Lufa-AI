@@ -7,6 +7,8 @@ import SiteLayout from '../../layouts/SiteLayout.astro';
 import { artifacts, type CatalogArtifact } from '../../data/catalog';
 
 const repositoryRoot = fileURLToPath(new URL('../../../../', import.meta.url));
+const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
+const homeHref = `${baseUrl}/`;
 
 export function getStaticPaths() {
   return artifacts.map((artifact) => ({
@@ -35,7 +37,7 @@ const versionsWithContent = await Promise.all(
 <SiteLayout title={artifact.name} description={artifact.description}>
   <div class="detail-page">
     <nav class="breadcrumbs" aria-label="Fil d’Ariane">
-      <a href="/">Catalogue</a>
+      <a href={homeHref}>Catalogue</a>
       <span aria-hidden="true">/</span>
       <span aria-current="page">{artifact.name}</span>
     </nav>

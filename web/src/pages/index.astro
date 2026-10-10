@@ -2,6 +2,7 @@
 import SiteLayout from '../layouts/SiteLayout.astro';
 import { artifacts, categories, environments } from '../data/catalog';
 
+const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
 const searchableArtifacts = artifacts.map((artifact) => ({
   artifact,
   searchText: [
@@ -161,7 +162,9 @@ const searchableArtifacts = artifacts.map((artifact) => ({
               </span>
             </div>
             <h3>
-              <a href={`/artifacts/${artifact.id}/`}>{artifact.name}</a>
+              <a href={`${baseUrl}/artifacts/${artifact.id}/`}>
+                {artifact.name}
+              </a>
             </h3>
             <p class="card-description">{artifact.description}</p>
             <ul class="tag-list" aria-label={`Catégories de ${artifact.name}`}>
@@ -174,7 +177,10 @@ const searchableArtifacts = artifacts.map((artifact) => ({
                 {artifact.versions[0]?.compatibilities.length ?? 0}{' '}
                 environnements déclarés
               </span>
-              <a class="card-link" href={`/artifacts/${artifact.id}/`}>
+              <a
+                class="card-link"
+                href={`${baseUrl}/artifacts/${artifact.id}/`}
+              >
                 Voir le détail <span aria-hidden="true">↗</span>
               </a>
             </div>

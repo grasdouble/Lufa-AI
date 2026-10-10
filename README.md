@@ -36,8 +36,30 @@ npm run web:dev   # serveur de développement Astro
 npm run web:build # génération statique dans web/dist/
 ```
 
-`npm run check` reconstruit le site puis vérifie ses routes, les liens et
-références d’accessibilité de base ainsi que la recherche et l’état sans résultat.
+La base est configurable avec `ASTRO_BASE` (par défaut `/`) ; pour simuler le
+site GitHub Pages du dépôt :
+
+```sh
+ASTRO_BASE=/Lufa-AI npm run web:build
+```
+
+Le build exporte aussi le registre statique depuis les sources validées et
+`generated/catalog-index.json`. L’index est servi à
+`/Lufa-AI/registry/catalog-index.json` et les fichiers de skill à
+`/Lufa-AI/registry/catalog/<identifiant>/<chemin-versionné>` (en local, retirer
+le préfixe `/Lufa-AI`). Cet export est généré sous `web/public/registry/` et
+n’est pas une seconde source de données.
+
+Pour activer la publication, ouvrir **Settings → Pages** dans le dépôt et
+choisir **GitHub Actions** comme source. Le workflow **GitHub Pages** n’a que
+le déclencheur manuel `workflow_dispatch` : depuis l’onglet **Actions**, lancer
+manuellement ce workflow pour publier le site à
+`https://grasdouble.github.io/Lufa-AI/`. Aucun push ni déploiement n’est effectué
+par les commandes locales.
+
+`npm run check` reconstruit le site sans préfixe et sous `/Lufa-AI/`, puis vérifie
+les routes, liens, assets et fichiers du registre publiés, les références
+d’accessibilité de base ainsi que la recherche et l’état sans résultat.
 
 ## Catalogue local
 

@@ -23,11 +23,11 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 4     | Installation initiale et verrouillage    | Validée  | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS.                     |
 | 5     | Inventaire et mises à jour sûres         | Validée | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                           |
 | 6     | Catalogue web en lecture seule           | Validée | Revue indépendante positive ; 46 tests, smoke HTTP, vérifications Chromium mobile/bureau et parcours clavier passés.                     |
-| 7     | Publication, cache et portabilité        | En cours | Livraison 7.1 validée et commitée ; livraison 7.2 (publication statique) à commencer.                                                 |
+| 7     | Publication, cache et portabilité        | En cours | Livraisons 7.1/7.2 validées ; livraison 7.3 (registre distant/cache) à commencer.                                                    |
 | 8     | Pilote et décision de lancement          | À faire  | —                                                                                                                                  |
 
 **Dernière étape validée :** étape 6 — Catalogue web en lecture seule.
-**Étape 7 en cours :** livraison 7.2 — Publication statique.
+**Étape 7 en cours :** livraison 7.3 — Registre distant et cache.
 
 ## Journal des validations
 
@@ -99,6 +99,15 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 - **Décision / points à corriger :** Aucun déploiement ni publication npm. Le nom reste à confirmer avant toute publication. Trois tests de course qui renomment le CWD actif sont ignorés sur Windows, car Windows interdit de renommer un répertoire de travail actif. Les tests utilisant un lien/jonction ne sont marqués ignorés que sur `EPERM` Windows ; ils retournent alors immédiatement du test concerné, les autres erreurs restent fatales et le répertoire temporaire du test de mise à jour est nettoyé dans `finally`, y compris après échec du probe. La validation des jobs CI et les livraisons 7.2/7.3 restent à faire.
 - **Validation livraison 7.1 :** validée par le coordinateur après revue indépendante ; jobs distants Linux/Windows restent à exécuter après push.
 - **Prochaine livraison :** 7.2 — publication statique du site et du catalogue sous le préfixe GitHub Pages.
+
+#### Livraison 7.2 — Publication statique
+
+- **État :** Validée
+- **Résumé / livrable :** Base Astro configurable, export statique du registre depuis l’index et les fichiers catalogue validés, tests des routes/assets locaux et sous `/Lufa-AI/`, workflow Pages déclenchable manuellement seulement.
+- **Vérifications effectuées :** macOS/Node.js 24.20.0 : `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, types, catalogue, builds locaux et `/Lufa-AI/`, fixtures, 50 tests, smoke du tarball) et `git diff --check` passés. Aucun workflow n’a été déclenché et aucune publication/déploiement n’a été effectué.
+- **Décision / points à corriger :** Revue indépendante positive. URL prévue `https://grasdouble.github.io/Lufa-AI/`. Aucun workflow déclenché, aucun déploiement effectué. Les jobs CI Linux/Windows de la matrice 7.1 restent à exécuter.
+- **Validation livraison 7.2 :** validée par le coordinateur après revue indépendante.
+- **Prochaine livraison :** 7.3 — registre distant et cache.
 
 ### Étape 8 — Pilote et décision de lancement
 
