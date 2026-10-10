@@ -19,8 +19,12 @@ npm test
 npm run check
 ```
 
-`npm run check` exécute les contrôles de formatage, lint, types et tests utilisés
-par la CI, dont la génération du site et les tests statiques de ses pages.
+`npm run check` combine les contrôles statiques (formatage, lint et types) et les
+vérifications de plateforme (catalogue, tests et smoke du paquet) utilisés par la
+CI. Le typecheck dédié `tsc --noEmit` est exécuté une seule fois dans
+`check:quality`, sur Ubuntu. En revanche, `check:platform` relance volontairement
+les builds TypeScript via `catalog:check` et le hook `prepack`, afin de valider la
+compilation et le paquet sur chaque système d’exploitation.
 `npm run format` applique le formatage ; `npm run format:check` le vérifie sans
 modifier les fichiers.
 

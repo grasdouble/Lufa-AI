@@ -48,8 +48,8 @@
     "web:build": "npm run registry:build && cd web && astro build",
     "web:build:pages": "npm run registry:build && node scripts/build-pages.js",
     "web:test-fixture": "astro build --root tests/fixtures/web-security",
-    "check:quality": "npm run format:check && npm run lint",
-    "check:platform": "npm run typecheck && npm run catalog:check && npm test && npm run pack:smoke",
+    "check:quality": "npm run format:check && npm run lint && npm run typecheck",
+    "check:platform": "npm run catalog:check && npm test && npm run pack:smoke",
     "check": "npm run check:quality && npm run check:platform"
   },
   "dependencies": {
