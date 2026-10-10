@@ -22,12 +22,12 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 3     | CLI de consultation du catalogue         | Validée  | Revue indépendante positive ; 22 tests sous Node 24, JSON sans bruit npm et commande d’installation indicative documentés.         |
 | 4     | Installation initiale et verrouillage    | Validée  | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS.                     |
 | 5     | Inventaire et mises à jour sûres         | Validée | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                           |
-| 6     | Catalogue web en lecture seule           | À faire  | —                                                                                                                                  |
+| 6     | Catalogue web en lecture seule           | Validée | Revue indépendante positive ; 46 tests, smoke HTTP, vérifications Chromium mobile/bureau et parcours clavier passés.                     |
 | 7     | Publication, cache et portabilité        | À faire  | —                                                                                                                                  |
 | 8     | Pilote et décision de lancement          | À faire  | —                                                                                                                                  |
 
-**Dernière étape validée :** étape 5 — Inventaire et mises à jour sûres.
-**Prochaine étape :** étape 6 — Catalogue web en lecture seule.
+**Dernière étape validée :** étape 6 — Catalogue web en lecture seule.
+**Prochaine étape :** étape 7 — Publication, cache et portabilité.
 
 ## Journal des validations
 
@@ -84,11 +84,11 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 
 ### Étape 6 — Catalogue web en lecture seule
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation finale :** en attente
+- **État :** Validée
+- **Résumé / livrable :** Site statique Astro sous `web/`, alimenté par `generated/catalog-index.json` et les fichiers catalogue ; recherche/filtres, pages de détail et commandes locales documentés.
+- **Vérifications effectuées :** `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, typecheck, index valide, build Astro, fixture de sécurité et smoke HTTP du build statique ; 46 tests au total) et `git diff --check` passés. Chromium : accueil à 390×844 et 1280×900, détail mobile sans débordement horizontal, clavier Tab vers skip-link/recherche/filtres, recherche sans résultat, Entrée sans rechargement, reset et navigation au détail ; aucune erreur JS. Le serveur Astro documenté répond HTTP 200 à l’accueil et au détail.
+- **Décision / points à corriger :** Revue indépendante positive. Aucun déploiement, compte, administration ni édition/publication libre. La configuration `base` GitHub Pages reste ouverte à l’étape 7. Les erreurs de données bloquent la génération statique avec erreur exploitable plutôt que d’afficher une page runtime d’erreur.
+- **Validation finale :** validée par le coordinateur après revue indépendante et contrôle navigateur.
 
 ### Étape 7 — Publication, cache et portabilité
 

@@ -1,3 +1,7 @@
 node_modules/
 coverage/
 dist/
+web/dist/
+web/.astro/
+tests/fixtures/web-security/dist/
+tests/fixtures/web-security/.astro/

@@ -20,8 +20,24 @@ npm run check
 ```
 
 `npm run check` exécute les contrôles de formatage, lint, types et tests utilisés
-par la CI. `npm run format` applique le formatage ; `npm run format:check` le
-vérifie sans modifier les fichiers.
+par la CI, dont la génération du site et les tests statiques de ses pages.
+`npm run format` applique le formatage ; `npm run format:check` le vérifie sans
+modifier les fichiers.
+
+## Catalogue web local
+
+Le site public en lecture seule est généré avec Astro dans `web/`. Il consomme le
+même index que la CLI (`generated/catalog-index.json`) et les fichiers publiés
+sous `catalog/` pour afficher leur contenu en texte consultable ; aucun contenu
+n’est exécuté. Depuis la racine du dépôt :
+
+```sh
+npm run web:dev   # serveur de développement Astro
+npm run web:build # génération statique dans web/dist/
+```
+
+`npm run check` reconstruit le site puis vérifie ses routes, les liens et
+références d’accessibilité de base ainsi que la recherche et l’état sans résultat.
 
 ## Catalogue local
 

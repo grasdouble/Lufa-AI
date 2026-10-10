@@ -114,7 +114,7 @@ Le plan ne fixe pas encore de langage, framework ou fournisseur d’hébergement
 - Construire la page de catalogue, la recherche et les filtres prévus au MVP.
 - Construire une page de détail affichant les versions, compatibilités et leur niveau de preuve, la provenance, le contenu consultable et la commande CLI.
 - Alimenter l’interface avec le même index que la CLI.
-- Ajouter les états catalogue vide / erreur / résultat absent, une navigation clavier et une mise en page mobile.
+- Ajouter les états catalogue vide et résultat absent, une navigation clavier et une mise en page mobile. Comme le site est statique et intègre les données à la génération, une donnée catalogue invalide doit faire échouer le build avec une erreur exploitable plutôt que produire une page runtime d’erreur.
 
 **Validation / porte de sortie :** vérifier que les informations affichées correspondent à l’index et à la CLI ; revue clavier/accessibilité de base ; test des pages de liste et de détail aux tailles d’écran mobile et bureau.
 
