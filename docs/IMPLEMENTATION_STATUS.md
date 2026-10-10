@@ -6,8 +6,8 @@ Le [plan d’implémentation](IMPLEMENTATION_PLAN.md) décrit les étapes et leu
 
 - **À faire** — le travail n’a pas commencé.
 - **En cours** — l’étape est en développement.
-- **À valider** — le travail et les vérifications sont terminés ; revue produit attendue.
-- **Validée** — le résultat a été revu et accepté ; l’étape suivante peut commencer.
+- **À valider** — le travail et les vérifications sont terminés ; revue indépendante attendue.
+- **Validée** — le coordinateur a accepté le résultat après revue indépendante ; l’étape suivante peut commencer.
 - **Bloquée** — une décision ou un problème empêche de poursuivre ; préciser le blocage.
 
 On ne considère pas une étape comme validée uniquement parce que son code est terminé : les critères de sortie du plan doivent être vérifiés et le résultat revu.
@@ -16,7 +16,7 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 
 | Étape | Sujet | État | Résultat / blocage |
 |---|---|---|---|
-| 0 | Spike de compatibilité `.agents/skills/` | À faire | — |
+| 0 | Spike de compatibilité `.agents/skills/` | Validée | Revue indépendante positive ; résultats bornés à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26. |
 | 1 | Décisions techniques et socle du dépôt | À faire | — |
 | 2 | Contrat et premier catalogue valide | À faire | — |
 | 3 | CLI de consultation du catalogue | À faire | — |
@@ -26,20 +26,21 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 7 | Publication, cache et portabilité | À faire | — |
 | 8 | Pilote et décision de lancement | À faire | — |
 
-**Étape suivante :** étape 0 — Spike de compatibilité `.agents/skills/`.
+**Dernière étape validée :** étape 0 — Spike de compatibilité `.agents/skills/`.
+**Prochaine étape :** étape 1 — Décisions techniques et socle du dépôt.
 
 ## Journal des validations
 
-Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter sa validation après revue.
+Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendant qu’elle est **En cours** ; compléter son résultat au passage à **À valider**, puis noter la décision après revue.
 
 ### Étape 0 — Spike de compatibilité `.agents/skills/`
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Environnements et versions testés :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **État :** Validée
+- **Résumé / livrable :** Fixture isolé et résultats consignés dans [le spike de compatibilité](compatibility-spike.md).
+- **Environnements et versions testés :** macOS 27.0.1 (build 26A434), GitHub Copilot CLI 1.0.95 et OpenCode CLI v2.0.26.
+- **Vérifications effectuées :** Depuis la racine fixture, Copilot `skill list` et invocation du skill avec marqueur attendu ; OpenCode appel de l’outil natif `skill`, contenu chargé et marqueur attendu. Depuis la racine Lufa-AI, aucun skill de projet listé par Copilot et chargement du skill en erreur dans OpenCode. Commandes et extraits dans la note.
+- **Décision / points à corriger :** Le PRD v0.3, section 13, point 1, retient `.agents/skills/<identifiant>/` comme destination partagée sans copie spécifique par outil. Revue indépendante positive ; résultat borné à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26. Aucun correctif bloquant identifié.
+- **Validation finale :** validée par le coordinateur après revue indépendante.
 
 ### Étape 1 — Décisions techniques et socle du dépôt
 
@@ -47,7 +48,7 @@ Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter
 - **Résumé / livrable :** —
 - **Vérifications effectuées :** —
 - **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **Validation finale :** en attente
 
 ### Étape 2 — Contrat et premier catalogue valide
 
@@ -55,7 +56,7 @@ Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter
 - **Résumé / livrable :** —
 - **Vérifications effectuées :** —
 - **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **Validation finale :** en attente
 
 ### Étape 3 — CLI de consultation du catalogue
 
@@ -63,7 +64,7 @@ Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter
 - **Résumé / livrable :** —
 - **Vérifications effectuées :** —
 - **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **Validation finale :** en attente
 
 ### Étape 4 — Installation initiale et verrouillage
 
@@ -71,7 +72,7 @@ Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter
 - **Résumé / livrable :** —
 - **Vérifications effectuées :** —
 - **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **Validation finale :** en attente
 
 ### Étape 5 — Inventaire et mises à jour sûres
 
@@ -79,7 +80,7 @@ Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter
 - **Résumé / livrable :** —
 - **Vérifications effectuées :** —
 - **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **Validation finale :** en attente
 
 ### Étape 6 — Catalogue web en lecture seule
 
@@ -87,7 +88,7 @@ Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter
 - **Résumé / livrable :** —
 - **Vérifications effectuées :** —
 - **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **Validation finale :** en attente
 
 ### Étape 7 — Publication, cache et portabilité
 
@@ -95,7 +96,7 @@ Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter
 - **Résumé / livrable :** —
 - **Vérifications effectuées :** —
 - **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **Validation finale :** en attente
 
 ### Étape 8 — Pilote et décision de lancement
 
@@ -103,11 +104,11 @@ Ajouter une entrée lorsqu’une étape passe à **À valider**, puis compléter
 - **Résumé / livrable :** —
 - **Vérifications effectuées :** —
 - **Décision / points à corriger :** —
-- **Validation utilisateur :** en attente
+- **Validation finale :** en attente
 
 ## Règle de mise à jour
 
-1. Au démarrage d’une étape, passer son état à **En cours**.
+1. Au démarrage d’une étape, passer son état à **En cours** et créer son entrée de journal.
 2. Quand le livrable et ses vérifications sont prêts, renseigner son journal et passer à **À valider**.
 3. Après revue, noter la décision et passer à **Validée**, ou laisser **À valider** en précisant les corrections attendues. Si un blocage empêche d’avancer, passer à **Bloquée** et le décrire.
 4. Mettre à jour la ligne correspondante dans la vue d’ensemble et l’étape suivante uniquement après validation.
