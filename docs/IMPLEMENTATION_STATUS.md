@@ -14,20 +14,19 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 
 ## Vue d’ensemble
 
-| Étape | Sujet                                    | État     | Résultat / blocage                                                                                                                 |
-| ----- | ---------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 0     | Spike de compatibilité `.agents/skills/` | Validée  | Revue indépendante positive ; résultats bornés à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26.                                       |
-| 1     | Décisions techniques et socle du dépôt   | Validée  | Revue indépendante positive ; job CI équivalent passé localement sous Node 24.20.0. CI distante non exécutée.                      |
-| 2     | Contrat et premier catalogue valide      | Validée  | Revue indépendante positive ; schéma, sécurité des chemins, preuves et index déterministe couverts par 16 tests sous Node 24.20.0. |
-| 3     | CLI de consultation du catalogue         | Validée  | Revue indépendante positive ; 22 tests sous Node 24, JSON sans bruit npm et commande d’installation indicative documentés.         |
-| 4     | Installation initiale et verrouillage    | Validée  | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS.                     |
-| 5     | Inventaire et mises à jour sûres         | Validée  | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                            |
-| 6     | Catalogue web en lecture seule           | Validée  | Revue indépendante positive ; 46 tests, smoke HTTP, vérifications Chromium mobile/bureau et parcours clavier passés.               |
-| 7     | Publication, cache et portabilité        | En cours | Livraisons 7.2/7.3a/7.3b validées et Pages déployée ; validation runtime complète de la matrice 7.1 encore attendue.               |
-| 8     | Pilote et décision de lancement          | À faire  | —                                                                                                                                  |
+| Étape | Sujet                                    | État    | Résultat / blocage                                                                                                                    |
+| ----- | ---------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Spike de compatibilité `.agents/skills/` | Validée | Revue indépendante positive ; résultats bornés à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26.                                          |
+| 1     | Décisions techniques et socle du dépôt   | Validée | Revue indépendante positive ; job CI équivalent passé localement sous Node 24.20.0. CI distante non exécutée.                         |
+| 2     | Contrat et premier catalogue valide      | Validée | Revue indépendante positive ; schéma, sécurité des chemins, preuves et index déterministe couverts par 16 tests sous Node 24.20.0.    |
+| 3     | CLI de consultation du catalogue         | Validée | Revue indépendante positive ; 22 tests sous Node 24, JSON sans bruit npm et commande d’installation indicative documentés.            |
+| 4     | Installation initiale et verrouillage    | Validée | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS.                        |
+| 5     | Inventaire et mises à jour sûres         | Validée | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                               |
+| 6     | Catalogue web en lecture seule           | Validée | Revue indépendante positive ; 46 tests, smoke HTTP, vérifications Chromium mobile/bureau et parcours clavier passés.                  |
+| 7     | Publication, cache et portabilité        | Validée | CI qualité et runtime verts ; Pages et registre répondent en production ; tarball/offline validés sur la matrice macOS/Linux/Windows. |
+| 8     | Pilote et décision de lancement          | Validée | Revue indépendante positive ; tarball, registre, mise à jour, cache hors ligne et Copilot/OpenCode vérifiés dans deux projets isolés. |
 
-**Dernière étape validée :** étape 6 — Catalogue web en lecture seule.
-**Étape 7 en cours :** validation runtime complète de la matrice multiplateforme ; le site Pages est déployé. Aucune publication npm effectuée.
+**Dernière étape validée :** étape 8 — Pilote et décision de lancement.
 
 ## Journal des validations
 
@@ -92,36 +91,34 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 
 ### Étape 7 — Publication, cache et portabilité
 
-- **État :** En cours
-- **Résumé / livrable :** Étape découpée en paquets 7.1 (CLI/CI), 7.2 (publication statique) et 7.3 (registre distant/cache).
+- **État :** Validée
+- **Résumé / livrable :** Étape découpée en paquets 7.1 (CLI/CI), 7.2 (publication statique) et 7.3 (registre distant/cache), tous revus et commités.
 - **Livraison 7.1 :** paquet npm `lufa-ai` (nom provisoire), build TypeScript, commande `lufa`, ressources runtime incluses, smoke `npm pack`/installation isolée et matrice Node 24 macOS/Linux/Windows configurés.
-- **Vérifications effectuées :** Sous Node.js 24.20.0/macOS, `npm ci`, `npm run check` et `npm run check:platform` (68 tests) passent ; le smoke du tarball dans un consommateur temporaire valide `list --json`, `show` et `install --yes`. `npm run format:check` et `git diff --check` passent également.
-  Historique CI : le run [38025440503](https://github.com/grasdouble/Lufa-AI/actions/runs/38025440503) a passé Linux/macOS, mais Windows s’est arrêté sur Prettier à cause des fins de ligne. Le run [38026395719](https://github.com/grasdouble/Lufa-AI/actions/runs/38026395719) a passé Linux/macOS ; Windows a réussi les builds et 64 tests (3 ignorés), puis échoué sur l’unique test npm (`spawnSync` ne lance pas le shim `npm.cmd`).
-  Correctif local du test : lancer npm via `process.execPath` et `process.env.npm_execpath`. Il reste à valider par un nouveau run Windows après push ; aucune validation distante de ce correctif n’est acquise.
-- **Décision / points à corriger :** Aucune publication npm ; le nom reste à confirmer avant toute publication. Trois tests de course qui renomment le CWD actif sont ignorés sur Windows, car Windows interdit de renommer un répertoire de travail actif. Les tests utilisant un lien/jonction ne sont marqués ignorés que sur `EPERM` Windows ; ils retournent alors immédiatement du test concerné, les autres erreurs restent fatales et le répertoire temporaire du test de mise à jour est nettoyé dans `finally`, y compris après échec du probe. Les livraisons 7.2/7.3 sont réalisées ; la validation d’exécution Windows de 7.1 reste attendue.
-- **État livraison 7.1 :** validation d’exécution multiplateforme en attente d’un run distant après push du correctif local ; l’étape 7 reste **En cours**.
-- **Prochaine vérification :** nouveau run CI de la matrice multiplateforme après push ; aucun run n’est déclenché par ce correctif.
+- **État livraison 7.1 :** validée par CI run [38028906627](https://github.com/grasdouble/Lufa-AI/actions/runs/38028906627) ; jobs Ubuntu, macOS et Windows verts, et workflow qualité [38028906625](https://github.com/grasdouble/Lufa-AI/actions/runs/38028906625) vert.
+- **Vérifications effectuées :** Sous Node.js 24.20.0/macOS, `npm ci`, `npm run check` et `npm run check:platform` (68 tests) passent ; le smoke du tarball dans un consommateur temporaire valide `list --json`, `show` et `install --yes`. `npm run format:check` et `git diff --check` passent également. GitHub Actions run [38028906627](https://github.com/grasdouble/Lufa-AI/actions/runs/38028906627) : matrice Ubuntu/macOS/Windows verte ; workflow qualité [38028906625](https://github.com/grasdouble/Lufa-AI/actions/runs/38028906625) vert.
+- **Historique du correctif :** les runs [38025440503](https://github.com/grasdouble/Lufa-AI/actions/runs/38025440503) et [38026395719](https://github.com/grasdouble/Lufa-AI/actions/runs/38026395719) ont révélé les fins de ligne Windows puis le lancement `npm.cmd`; les deux correctifs sont maintenant confirmés par le run 38028906627.
+- **Décision / points à corriger :** Aucune publication npm ; le nom reste à confirmer avant toute publication. Trois tests de course qui renomment le CWD actif sont ignorés sous Windows, car celui-ci interdit de renommer le répertoire de travail actif. Les tests de lien/jonction ne sont ignorés que sur `EPERM`; les autres erreurs restent fatales et les répertoires temporaires sont nettoyés dans `finally`.
 
 #### Livraison 7.2 — Publication statique
 
 - **État :** Validée
 - **Résumé / livrable :** Base Astro configurable, export statique du registre depuis l’index et les fichiers catalogue validés, tests des routes/assets locaux et sous `/Lufa-AI/`, workflow Pages déclenchable manuellement seulement.
-- **Vérifications effectuées :** macOS/Node.js 24.20.0 : `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, types, catalogue, builds locaux et `/Lufa-AI/`, fixtures, 50 tests, smoke du tarball) et `git diff --check` passés. Le site GitHub Pages est désormais déployé selon le coordinateur ; aucun déploiement n’a été effectué pendant le présent correctif.
-- **Décision / points à corriger :** Revue indépendante positive. Site disponible à `https://grasdouble.github.io/Lufa-AI/` selon le coordinateur. Aucun workflow ni déploiement déclenché pendant le présent correctif.
+- **Vérifications effectuées :** builds locaux et `/Lufa-AI/` passent ; HTTP 200 vérifié sur `https://grasdouble.github.io/Lufa-AI/registry/catalog-index.json` (application/json) et `.../registry/catalog/hello-agent/versions/1.2.0/SKILL.md` (text/markdown). Site déployé, confirmé par l’utilisateur.
+- **Décision / points à corriger :** Revue indépendante positive ; aucun défaut ouvert pour l’étape 7.
 - **Validation livraison 7.2 :** validée par le coordinateur après revue indépendante.
 - **Livraison 7.3a :** Validée — lecture/rafraîchissement/cache de l’index distant pour `list`, `search`, `show` et `outdated`. URL par défaut GitHub Pages, HTTP limité au loopback, surcharge HTTPS `LUFA_REGISTRY_URL`, cache utilisateur configurable par `LUFA_CACHE_DIR`, validation stricte, refus des symlinks et taille maximale de 5 Mio, replis cache/instantané avec avertissement `stderr` ; `install`/`update` restent locaux jusqu’à 7.3b. Vérifié sur macOS/Node 24.20.0 par `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, types, 61 tests avec HTTP local, smoke offline du tarball) et `git diff --check` ; aucun accès GitHub réel, déploiement, commit ou push. Les vérifications de chemins ne prétendent pas résister aux courses d’un processus tiers du même UID. Revue indépendante positive.
 - **Validation livraison 7.3a :** validée par le coordinateur après revue indépendante.
 - **Livraison 7.3b :** Validée — index schéma 2 avec SHA-256 par fichier ; téléchargements à la demande bornés et sans redirection ; MIME vérifié ; tous les blobs d’un artefact sont hachés avant écriture du moindre nouveau blob cache ; recours hors ligne seulement pour le contenu exact déjà disponible. Vérifié avec fixtures HTTP locaux sous Node 24.20.0/macOS : `npm run check` (68 tests et smoke offline du tarball) et `git diff --check`. Aucun accès GitHub réel, déploiement, commit ou push.
 - **Validation livraison 7.3b :** validée par le coordinateur après revue indépendante.
-- **Décision / points à corriger :** Les tests d’exécution de la nouvelle matrice 7.1 restent à confirmer par un run distant après push. GitHub Pages est désormais déployée selon le coordinateur. Aucun push, workflow ou déploiement n’a été déclenché pendant ce correctif ; l’étape 7 reste **En cours**.
+- **Décision / points à corriger :** La matrice multiplateforme et le registre public sont vérifiés ; la publication npm reste différée à la décision de lancement. Étape 7 **Validée**.
 
 ### Étape 8 — Pilote et décision de lancement
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation finale :** en attente
+- **État :** Validée
+- **Résumé / livrable :** Parcours pilote terminé dans deux projets consommateurs temporaires isolés ; détails et commandes reproductibles dans [la validation du pilote](pilot-validation.md).
+- **Vérifications effectuées :** Paquet local `lufa-ai@0.1.0` construit sous Node 24.20.0/npm 11.19.0 depuis le commit `57ca7a94646c5067144b68be65e653e967ac75b1`, installé depuis son tarball hors des sources du dépôt. Registre de production vérifié en JSON HTTP 200. Projet A : installation `hello-agent@1.1.0`, détection de `1.2.0`, mise à jour stable ; verrou et SHA-256 vérifiés, `legacy-notes.md` orphelin conservé. Projet B : installation latest stable `1.2.0`, avertissement explicite avec registre loopback inaccessible, réinstallation en cache avec version, fichiers et empreintes inchangés. Copilot CLI 1.0.95 liste le skill ; OpenCode CLI v2.0.26 invoque son outil natif `skill` et retourne une phrase vérifiable du contenu. Tests sous macOS ; limites consignées dans le rapport. La clarification documentaire des commandes n'est pas une nouvelle exécution du pilote.
+- **Décision / points à corriger :** Revue indépendante positive. L’implémentation MVP est validée et techniquement prête à être publiée ; le paquet npm `lufa-ai` n’a pas été publié. La commande publique d’installation restera indisponible jusqu’à une décision/action distincte de publication npm. Le site GitHub Pages est déjà déployé.
+- **Validation finale :** validée par le coordinateur après revue indépendante.
 
 ## Règle de mise à jour
 

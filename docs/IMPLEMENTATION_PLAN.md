@@ -130,7 +130,7 @@ Le plan ne fixe pas encore de langage, framework ou fournisseur d’hébergement
 - Finaliser le mécanisme de distribution de la CLI et les instructions d’installation / désinstallation.
 - Ajouter les validations de publication dans la CI et documenter le processus de revue mainteneur.
 
-**Validation / porte de sortie :** installation de la CLI depuis les instructions publiques sur les trois plateformes ; consultation hors ligne de données en cache ; publication d’une version de catalogue ; CI bloquant les données invalides.
+**Validation / porte de sortie :** smoke d’installation du tarball CLI et tests d’exécution verts sur macOS/Linux/Windows ; consultation et réinstallation hors ligne des versions en cache ; registre et site effectivement servis sous l’URL GitHub Pages ; CI bloquant les données invalides. La publication npm du paquet est réservée à la décision de lancement de l’étape 8 et n’est pas déclenchée ici.
 
 Cette étape est volontairement découpée en trois livraisons révisables afin d’éviter un diff transversal trop large :
 
@@ -140,7 +140,7 @@ Cette étape est volontairement découpée en trois livraisons révisables afin 
    - **7.3a — Index distant :** rafraîchir l’index pour liste/recherche/détail/updates, le mettre en cache avec indication explicite lorsqu’il est périmé, et retomber sur cache/instantané du paquet hors ligne. Tester avec un serveur HTTP de fixture.
    - **7.3b — Fichiers distants :** télécharger à la demande les fichiers de la version choisie, vérifier leur empreinte publiée, les mettre en cache et permettre une réinstallation hors ligne uniquement si le contenu exact est déjà présent. Tester checksum, cache, panne réseau et absence d’écriture dans le projet avant vérification.
 
-Chaque livraison a son propre petit diff, sa revue indépendante et son commit. L’étape 7 reste **En cours** jusqu’à la validation des trois livraisons et des preuves de portabilité disponibles.
+Chaque livraison a son propre petit diff, sa revue indépendante et son commit. L’étape 7 est **Validée** quand ces portes de sortie sont démontrées ; les actions de publication npm restent explicitement à la décision de lancement de l’étape 8.
 
 ### Étape 8 — Pilote et décision de lancement
 
