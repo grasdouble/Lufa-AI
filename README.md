@@ -38,9 +38,11 @@ npm run catalog:check    # valide les sources et vérifie la fraîcheur de l’i
 
 ## Consulter le catalogue
 
-La CLI locale lit uniquement `generated/catalog-index.json`. Elle ne contacte
-aucun service, ne met rien en cache et ne modifie pas le projet depuis lequel
-elle est lancée. À cette étape, elle est utilisable depuis le dépôt, sans
+Les commandes de consultation lisent `generated/catalog-index.json` sans modifier
+le projet. La CLI locale ne contacte aucun service et ne met rien en cache.
+L’installation, elle, lit les sources du catalogue local de développement dans
+`catalog/` : elle ne télécharge pas d’artefact et n’est pas encore une commande
+distribuée. À cette étape, la CLI est utilisable depuis le dépôt, sans
 installation de paquet ni commande `bin` :
 
 ```sh
@@ -65,7 +67,7 @@ prérequis et avertissements. `npm run lufa -- --help` affiche l’aide. Régén
 l’index avec `npm run catalog:build` si celui-ci est absent ou invalide.
 
 Le détail indique également `lufa install <identifiant>` comme commande
-d’installation indicative ; l’installation ne sera disponible qu’à l’étape 4.
+d’installation.
 
 Démo du skill pilote :
 
@@ -84,8 +86,42 @@ Version 1.0.0 (publiée le 2026-10-10T00:00:00Z)
   opencode : declared
 Prérequis : aucun
 Avertissements : Compatibilité déclarée, non vérifiée pour ce skill pilote ; aucun résultat de test spécifique à cette version n'est disponible.
-Installation indicative (disponible à l’étape 4) : lufa install hello-agent
+Installation : lufa install hello-agent
 ```
 
 Le niveau `declared` décrit une compatibilité annoncée ; `verified` exige une
 preuve documentée et n’est pas déduit de la seule validation structurelle.
+
+## Installer un skill
+
+Comme la CLI n’est pas encore distribuée, lancer ces commandes depuis le dépôt
+Lufa-AI et indiquer le projet consommateur avec `--project` :
+
+```sh
+npm run lufa -- install hello-agent --project ../mon-projet
+npm run lufa -- install hello-agent@1.0.0 --project ../mon-projet
+```
+
+Sans version, la CLI choisit la version stable la plus récente (jamais une
+préversion implicite). Une version donnée, préversion comprise, peut être
+sélectionnée explicitement. L’installateur affiche la source locale du catalogue,
+la version, la destination et les fichiers, puis demande confirmation. En
+automatisation, confirmer explicitement avec `--yes` ou `--non-interactive` :
+
+```sh
+npm run lufa -- install hello-agent --project ../mon-projet --yes
+npm run lufa -- install hello-agent@1.0.0 --project /chemin/vers/projet --yes
+```
+
+Sans `--project`, la destination est le `process.cwd()` de la CLI.
+
+Les fichiers sont installés sous `.agents/skills/<identifiant>/` et suivis avec
+leurs empreintes dans `lufa.lock.json`. Une nouvelle installation présente un
+aperçu et demande confirmation ; une réinstallation intacte est idempotente et
+revient sans aperçu ni confirmation. Les automatisations doivent confirmer les
+nouvelles installations avec `--yes`. La CLI lit le catalogue local de
+développement, sans réseau ni cache. Les installations Lufa d’un même projet
+sont sérialisées, mais cette coordination ne protège pas contre un processus
+tiers du même UID qui modifie simultanément les mêmes chemins. Voir la [note de
+sécurité et de threat model](docs/installation-safety.md) pour le rollback et les
+limites de plateforme.

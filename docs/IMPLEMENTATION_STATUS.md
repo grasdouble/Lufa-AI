@@ -20,14 +20,14 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 1 | Décisions techniques et socle du dépôt | Validée | Revue indépendante positive ; job CI équivalent passé localement sous Node 24.20.0. CI distante non exécutée. |
 | 2 | Contrat et premier catalogue valide | Validée | Revue indépendante positive ; schéma, sécurité des chemins, preuves et index déterministe couverts par 16 tests sous Node 24.20.0. |
 | 3 | CLI de consultation du catalogue | Validée | Revue indépendante positive ; 22 tests sous Node 24, JSON sans bruit npm et commande d’installation indicative documentés. |
-| 4 | Installation initiale et verrouillage | À faire | — |
+| 4 | Installation initiale et verrouillage | Validée | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS. |
 | 5 | Inventaire et mises à jour sûres | À faire | — |
 | 6 | Catalogue web en lecture seule | À faire | — |
 | 7 | Publication, cache et portabilité | À faire | — |
 | 8 | Pilote et décision de lancement | À faire | — |
 
-**Dernière étape validée :** étape 3 — CLI de consultation du catalogue.
-**Prochaine étape :** étape 4 — Installation initiale et verrouillage.
+**Dernière étape validée :** étape 4 — Installation initiale et verrouillage.
+**Prochaine étape :** étape 5 — Inventaire et mises à jour sûres.
 
 ## Journal des validations
 
@@ -68,11 +68,11 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 
 ### Étape 4 — Installation initiale et verrouillage
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation finale :** en attente
+- **État :** Validée
+- **Résumé / livrable :** Commande install, aperçu/confirmation, installation idempotente et manifeste `lufa.lock.json`.
+- **Vérifications effectuées :** `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, types, catalogue et 34 tests passés) ; `git diff --check` passé. Tests déterministes de concurrence, de remplacement symlink avant écriture, de rollback après déplacement de l’ancre dans le projet et de refus de nettoyage si elle est déplacée hors projet ; aucun fichier dans le symlink externe ni lock mensonger, CWD restauré.
+- **Décision / points à corriger :** Revue indépendante positive dans le threat model documenté : installations Lufa sérialisées ; pas de garantie contre un tiers du même UID modifiant malicieusement les mêmes noms simultanément. Si l’identité/emplacement est incertain, échec non-zéro et résidus signalés/préservés. CWD ancré vérifié sous Node 24/macOS uniquement ; Linux et Windows restent à tester à l’étape 7. Catalogue local seulement, pas de réseau/cache ; mises à jour reportées à l’étape 5.
+- **Validation finale :** validée par le coordinateur après revue indépendante.
 
 ### Étape 5 — Inventaire et mises à jour sûres
 

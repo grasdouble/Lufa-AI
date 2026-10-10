@@ -100,8 +100,8 @@ test('show prints the complete artifact detail, including provenance and version
     ...expectedArtifact,
     installation: {
       command: 'lufa install hello-agent',
-      status: 'indicative',
-      note: 'Commande indicative ; l’installation sera disponible à l’étape 4.',
+      status: 'available',
+      note: 'Installe la dernière version stable ; utilisez @<version> pour choisir une version précise.',
     },
   };
 
@@ -123,10 +123,7 @@ test('show prints the complete artifact detail, including provenance and version
     assert.match(text.stdout, /github-copilot : declared/);
     assert.match(text.stdout, /Prérequis : aucun/);
     assert.match(text.stdout, /Avertissements : Compatibilité déclarée/);
-    assert.match(
-      text.stdout,
-      /Installation indicative \(disponible à l’étape 4\) : lufa install hello-agent/,
-    );
+    assert.match(text.stdout, /Installation : lufa install hello-agent/);
     assert.deepEqual(await readdir(cwd), []);
   });
 });
@@ -138,10 +135,10 @@ test('unknown artifacts, commands, missing arguments and invalid options have ac
     assert.match(unknownArtifact.stderr, /Artefact inconnu « missing-skill »/);
     assert.match(unknownArtifact.stderr, /npm run lufa -- list/);
 
-    const unknownCommand = runCli(['install', 'hello-agent'], cwd);
+    const unknownCommand = runCli(['remove', 'hello-agent'], cwd);
     assert.notEqual(unknownCommand.status, 0);
-    assert.match(unknownCommand.stderr, /Commande inconnue « install »/);
-    assert.match(unknownCommand.stderr, /list, search, show/);
+    assert.match(unknownCommand.stderr, /Commande inconnue « remove »/);
+    assert.match(unknownCommand.stderr, /list, search, show, install/);
 
     const missingSearchTerm = runCli(['search'], cwd);
     assert.notEqual(missingSearchTerm.status, 0);
@@ -170,6 +167,7 @@ test('help is available without reading or changing the project', async () => {
     assert.match(result.stdout, /list \[--json\]/);
     assert.match(result.stdout, /search <terme>/);
     assert.match(result.stdout, /show <identifiant>/);
+    assert.match(result.stdout, /install <identifiant\[@version\]>/);
     assert.deepEqual(await readdir(cwd), []);
   });
 });

@@ -84,10 +84,10 @@ Le plan ne fixe pas encore de langage, framework ou fournisseur d’hébergement
 - Supporter l’installation de la dernière version stable et l’installation d’une version explicite ; inscrire toujours la version exacte dans `lufa.lock.json`.
 - Enregistrer la source, la cible, les chemins et l’empreinte du contenu dans le verrou.
 - Ajouter aperçu, confirmation, mode non interactif explicite et réinstallation idempotente.
-- Valider les chemins, refuser les sorties du répertoire cible et écrire de façon atomique afin qu’un échec ne laisse pas une installation partielle déclarée réussie.
+- Valider les chemins d’installation, refuser les sorties du projet ainsi que les traversées et symlinks détectés pendant les vérifications ; écrire de façon atomique.
 - Ne pas exécuter les fichiers téléchargés ; signaler clairement leur origine.
 
-**Validation / porte de sortie :** installer le skill pilote dans un projet temporaire ; vérifier le contenu et le verrou ; réinstaller sans changement inattendu ; simuler une erreur et vérifier l’absence d’état partiel ; tester les cas de chemin malveillant.
+**Validation / porte de sortie :** installer le skill pilote dans un projet temporaire ; vérifier le contenu et le verrou ; réinstaller sans changement inattendu ; simuler une erreur ordinaire et vérifier qu’aucun état partiel ne reste. Tester les chemins malveillants et les symlinks connus. Si une mutation concurrente externe est détectée, l’installation doit échouer avec un code non nul, ne pas enregistrer un succès dans `lufa.lock.json` et signaler/préserver tout résidu dont l’identité ou l’emplacement ne permet pas un nettoyage sûr ; aucune promesse de protection contre un processus tiers du même UID modifiant malicieusement les mêmes noms au même instant. Voir la [note de sécurité de l’étape 4](installation-safety.md).
 
 ### Étape 5 — Inventaire et mises à jour sûres
 

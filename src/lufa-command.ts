@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInstallCommand } from './install-command.ts';
 
 type ArtifactSummary = {
   id: string;
@@ -45,10 +46,14 @@ Commandes :
   search <terme> [--json]   Rechercher dans les noms, descriptions, catégories et mots-clés
   show <identifiant> [--json]
                             Afficher le détail d’un artefact
+  install <identifiant[@version]> [--project <chemin>] [--yes]
+                            Installer une version dans le projet courant
   help                      Afficher cette aide
 
 Options :
   --json                    Produire une sortie JSON stable pour list, search et show
+  --project <chemin>        Cibler un dossier de projet pour install
+  --yes, --non-interactive  Confirmer explicitement sans invite interactive
   -h, --help                Afficher cette aide`;
 
 class CliError extends Error {
@@ -156,6 +161,10 @@ export async function runCatalogCli(args: string[]): Promise<void> {
   }
 
   const [command, ...commandArgs] = args;
+  if (command === 'install') {
+    await runInstallCommand(commandArgs);
+    return;
+  }
   if (command === 'help') {
     if (commandArgs.length > 0) {
       throw new CliError(`Usage : npm run lufa -- help\n\n${usage}`);
@@ -166,7 +175,7 @@ export async function runCatalogCli(args: string[]): Promise<void> {
 
   if (command !== 'list' && command !== 'search' && command !== 'show') {
     throw new CliError(
-      `Commande inconnue « ${command} ». Commandes disponibles : list, search, show. Consulter l’aide avec npm run lufa -- --help.`,
+      `Commande inconnue « ${command} ». Commandes disponibles : list, search, show, install. Consulter l’aide avec npm run lufa -- --help.`,
     );
   }
 
@@ -222,8 +231,8 @@ export async function runCatalogCli(args: string[]): Promise<void> {
     ...artifact,
     installation: {
       command: `lufa install ${artifact.id}`,
-      status: 'indicative',
-      note: 'Commande indicative ; l’installation sera disponible à l’étape 4.',
+      status: 'available',
+      note: 'Installe la dernière version stable ; utilisez @<version> pour choisir une version précise.',
     },
   };
   if (json) printJson(detail);
@@ -241,9 +250,7 @@ function printArtifactDetails(artifact: ArtifactSummary): void {
     `Catégories : ${artifact.discovery.categories.join(', ') || '—'}`,
   );
   console.log(`Mots-clés : ${artifact.discovery.keywords.join(', ') || '—'}`);
-  console.log(
-    `Installation indicative (disponible à l’étape 4) : lufa install ${artifact.id}`,
-  );
+  console.log(`Installation : lufa install ${artifact.id}`);
 
   for (const version of artifact.versions) {
     console.log(
