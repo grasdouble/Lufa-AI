@@ -1,7 +1,7 @@
 # PRD — Catalogue Lufa AI
 
 - **Statut :** validé — cible Copilot / OpenCode
-- **Version :** 0.3
+- **Version :** 0.4
 - **Date :** 2026-10-10
 
 ## 1. Résumé
@@ -31,6 +31,7 @@ Rendre les artefacts d’agents IA aussi faciles à découvrir, installer et mai
 
 - Centraliser des artefacts documentés et versionnés dans un catalogue consultable.
 - Permettre la découverte et l’installation depuis une CLI, sans copier-coller manuel.
+- Permettre d’invoquer la CLI à la demande avec `npx` ou `pnpm dlx`, sans installation globale ou dépendance permanente dans le projet consommateur.
 - Permettre de mettre à jour les artefacts installés, de manière explicite et prévisible.
 - Rendre visibles le type, la version, l’origine, les prérequis et les environnements compatibles de chaque artefact.
 - Offrir une interface web pour explorer le catalogue sans installer d’outil.
@@ -127,6 +128,8 @@ La CLI doit fournir, au minimum, les capacités suivantes :
 
 La CLI doit fonctionner depuis la racine d’un projet, ne pas nécessiter de compte pour consulter et installer les artefacts publics, et proposer un mode non interactif explicite pour l’automatisation.
 
+Le parcours d’utilisation public ne doit pas exiger l’installation préalable de la CLI : l’utilisateur peut la lancer à la demande via `npx --package=lufa-ai` ou `pnpm dlx --package=lufa-ai`. Le gestionnaire de paquets peut télécharger et mettre en cache le paquet CLI dans son propre cache, mais aucune commande d’installation globale ni ajout de dépendance au projet consommateur n’est requis. Une installation globale reste une option, pas un prérequis.
+
 ### 7.3 Installation et suivi dans le projet consommateur
 
 - L’installation doit placer les fichiers aux emplacements attendus par l’environnement ciblé.
@@ -168,6 +171,7 @@ Le catalogue ne doit pas supposer que chaque artefact est un skill. Chaque type 
 - Un catalogue public initial de skills.
 - Des métadonnées et un versionnement par artefact.
 - Une CLI installable permettant liste, recherche, détail, installation, liste des installations, vérification des mises à jour et mise à jour.
+- Des invocations documentées via `npx` et `pnpm dlx`, utilisables depuis un projet consommateur sans installation globale de Lufa ni modification de ses dépendances.
 - Un manifeste local de suivi dans les projets consommateurs.
 - Détection des modifications locales et aperçu avant mise à jour.
 - Un catalogue web consultable et des pages de détail.
@@ -212,14 +216,14 @@ Les seuils cibles seront définis après un premier test auprès d’utilisateur
 
 ## 12. Risques et réponses envisagées
 
-| Risque | Réponse produit |
-| --- | --- |
-| Un skill peut contenir des instructions malveillantes ou inadaptées | Afficher provenance et contenu, ne jamais exécuter le contenu à l’installation, permettre une revue avant installation. |
-| Une mise à jour écrase des modifications locales | Manifeste, détection de changements, aperçu et arrêt par défaut en cas de conflit. |
-| Les conventions de fichiers diffèrent selon les agents | Déclarer les compatibilités et destinations ; commencer avec un environnement cible clairement défini. |
-| Le catalogue devient difficile à maintenir | Métadonnées validées, processus de publication documenté et versions immuables. |
-| Le format initial bloque l’ajout d’autres artefacts | Séparer le type d’artefact, l’environnement cible et la stratégie d’installation dans le modèle. |
-| Les consommateurs dépendent d’un catalogue indisponible | Mettre en cache le dernier index connu et les artefacts téléchargés ; distinguer les données en cache des informations à jour. |
+| Risque                                                              | Réponse produit                                                                                                                |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Un skill peut contenir des instructions malveillantes ou inadaptées | Afficher provenance et contenu, ne jamais exécuter le contenu à l’installation, permettre une revue avant installation.        |
+| Une mise à jour écrase des modifications locales                    | Manifeste, détection de changements, aperçu et arrêt par défaut en cas de conflit.                                             |
+| Les conventions de fichiers diffèrent selon les agents              | Déclarer les compatibilités et destinations ; commencer avec un environnement cible clairement défini.                         |
+| Le catalogue devient difficile à maintenir                          | Métadonnées validées, processus de publication documenté et versions immuables.                                                |
+| Le format initial bloque l’ajout d’autres artefacts                 | Séparer le type d’artefact, l’environnement cible et la stratégie d’installation dans le modèle.                               |
+| Les consommateurs dépendent d’un catalogue indisponible             | Mettre en cache le dernier index connu et les artefacts téléchargés ; distinguer les données en cache des informations à jour. |
 
 ## 13. Décisions de cadrage retenues
 
@@ -235,7 +239,7 @@ Les décisions ci-dessous ferment les questions ouvertes du cadrage MVP. Elles p
 
 5. **Conflits : arrêt sûr par défaut.** Si un fichier géré a été modifié localement, la mise à jour s’arrête pour cet artefact et affiche les différences ; elle ne remplace rien silencieusement. L’utilisateur peut conserver sa version, ou demander explicitement le remplacement avec une option de force ; dans ce dernier cas, la CLI sauvegarde le fichier local avant remplacement. Si un fichier disparaît de la nouvelle version, la CLI ne le supprime pas automatiquement : elle signale le fichier devenu orphelin et laisse sa suppression à l’utilisateur. Aucune fusion automatique n’est incluse au MVP.
 
-6. **Plateformes : macOS, Linux et Windows.** Ces trois systèmes sont dans le périmètre de la CLI MVP. Le choix du mode de distribution et du gestionnaire de paquets (par exemple npm, Homebrew ou binaires) sera fait lors de la conception technique, selon la stack retenue ; il ne change pas les exigences fonctionnelles.
+6. **Plateformes et invocation : macOS, Linux et Windows via Node.js 24+.** Le paquet npm est lancé à la demande via `npx` ou `pnpm dlx` ; une installation globale est facultative. La distribution native sans Node.js reste différée. Le mode d’installation globale, s’il est proposé, ne constitue pas le parcours recommandé ni un prérequis.
 
 7. **Accès : catalogue public uniquement au lancement.** La consultation et l’installation d’artefacts publics ne nécessitent pas de compte. Les catalogues privés, l’authentification et les permissions d’équipe sont différés.
 

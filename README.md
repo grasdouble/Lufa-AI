@@ -6,22 +6,38 @@ Catalogue d’artefacts pour agents IA, avec une première version centrée sur 
 - [Plan d’implémentation](docs/IMPLEMENTATION_PLAN.md)
 - [Suivi d’implémentation](docs/IMPLEMENTATION_STATUS.md)
 
-## Installation et utilisation après publication
+## Utilisation sans installation globale
 
-Le paquet npm `lufa-ai` n’est pas encore publié. Une fois disponible, installez
-la CLI globalement, puis lancez-la depuis le projet à gérer :
+Le paquet npm `lufa-ai` n’est pas encore publié. Après publication, il ne sera
+pas nécessaire d’installer Lufa globalement ni de l’ajouter aux dépendances du
+projet. Depuis le projet consommateur, lancez la CLI ponctuellement avec `npx`
+ou `pnpm dlx` :
 
 ```sh
-npm install --global lufa-ai
-cd /chemin/vers/projet
-lufa list
-lufa search <terme>
-lufa show <id>
-lufa install <id>[@version]
-lufa installed
-lufa outdated
-lufa update [id]
+npx --yes --package=lufa-ai lufa list
+npx --yes --package=lufa-ai lufa search <terme>
+npx --yes --package=lufa-ai lufa show <id>
+npx --yes --package=lufa-ai lufa install <id>[@version]
+npx --yes --package=lufa-ai lufa installed
+npx --yes --package=lufa-ai lufa outdated
+npx --yes --package=lufa-ai lufa update [id]
 ```
+
+Avec pnpm, remplacez `npx --yes` par `pnpm dlx --yes` :
+
+```sh
+pnpm dlx --yes --package=lufa-ai lufa list
+pnpm dlx --yes --package=lufa-ai lufa install hello-agent
+```
+
+`npx`/`pnpm dlx` téléchargent le paquet CLI dans le cache du gestionnaire de
+paquets et lancent `lufa` sans ajouter de dépendance au projet. Node.js 24+ et
+npm ou pnpm sont requis. Ces exemples seront utilisables dès que `lufa-ai` sera
+publié ; actuellement, le paquet npm n’est pas encore disponible.
+
+Le MVP sait installer des **skills** dans `.agents/skills/`. Les commandes
+gardent une interface par identifiant d’artefact, mais les agents, instructions
+et autres types d’artefacts ne sont pas encore pris en charge.
 
 Sans version précisée, `install` choisit la dernière version stable et demande
 confirmation ; utilisez `--yes` pour l’automatisation. `update` demande également
@@ -38,8 +54,10 @@ dans `lufa.lock.json`, à versionner avec le projet. Leur découverte dans
 v2.0.26 ; elle n’est pas garantie pour les futures versions, les clients IDE ou
 les services cloud. Les options `--json` fournissent une sortie JSON pour les
 commandes qui affichent des résultats ou un plan. `lufa update` met à jour les
-skills du projet ; pour mettre à jour la CLI elle-même, utilisez
-`npm update --global lufa-ai`.
+skills du projet, pas la CLI. Si vous avez choisi une installation globale,
+`npm update --global lufa-ai` met à jour la CLI ; avec `npx`/`pnpm dlx`, le
+gestionnaire récupère la version publiée selon son cache et ses règles de
+résolution.
 
 Les payloads sont récupérés selon le contexte depuis le cache de contenus
 SHA-256, le registre configuré (GitHub Pages par défaut, remplaçable via
