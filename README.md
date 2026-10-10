@@ -125,3 +125,52 @@ sont sérialisées, mais cette coordination ne protège pas contre un processus
 tiers du même UID qui modifie simultanément les mêmes chemins. Voir la [note de
 sécurité et de threat model](docs/installation-safety.md) pour le rollback et les
 limites de plateforme.
+
+## Inventaire et mises à jour
+
+Depuis le dépôt Lufa-AI, utilisez `--project` pour cibler le projet consommateur
+(sans cette option, le répertoire courant est utilisé) :
+
+```sh
+npm run lufa -- installed --project ../mon-projet
+npm run lufa -- installed --project ../mon-projet --json
+npm run lufa -- outdated --project ../mon-projet
+npm run lufa -- outdated --project ../mon-projet --json
+npm run lufa -- update --project ../mon-projet
+npm run lufa -- update hello-agent --project ../mon-projet
+npm run lufa -- update hello-agent --project ../mon-projet --yes
+```
+
+`installed` liste uniquement les entrées de `lufa.lock.json` (identifiant,
+version exacte, cible et fichiers enregistrés). `outdated` compare chaque entrée
+à la dernière version stable présente dans le catalogue local et distingue
+`outdated`, `up-to-date` et `unavailable`. Les options `--json` de ces commandes
+produisent des tableaux JSON sur `stdout`.
+
+`update [identifiant]` (sans identifiant : toutes les entrées verrouillées)
+affiche la provenance déclarée (dépôt), le chemin local du catalogue réellement
+lu, les versions verrouillées/cibles, les ajouts, modifications et diffs, ainsi
+que les fichiers retirés de la nouvelle version. Une mise à jour exige une
+confirmation ; les scripts non interactifs doivent fournir `--yes` ou
+`--non-interactive`. `update --json` fournit le plan JSON ; avec confirmation,
+la sortie JSON inclut aussi `applied` et les notes de résultat. Les versions
+cibles sont toujours stables ; il n’y a pas de sélection de préversion pour
+`update`.
+
+Avant toute écriture, les empreintes SHA-256 du lock sont comparées aux fichiers
+locaux. Un fichier modifié ou supprimé bloque par défaut l’opération. Après
+revue du diff, `--force` autorise le remplacement et sauvegarde chaque fichier
+local existant concerné sous `.lufa/backups/<transaction>/<chemin-du-projet>`
+(par exemple `.lufa/backups/<transaction>/.agents/skills/hello-agent/SKILL.md`).
+Ces sauvegardes ne sont pas supprimées automatiquement. Un fichier devenu
+orphelin reste à sa place, est signalé et cesse d’être géré dans le nouveau lock ;
+aucune mise à jour ne le supprime automatiquement. Le contenu du catalogue n’est
+jamais exécuté.
+
+Les commandes `install` et `update` partagent `.lufa.install.lock` par projet.
+Les écritures multi-fichiers sont compensées en cas d’erreur ordinaire avant le
+commit du lock, mais ne forment pas une transaction atomique vis-à-vis des autres
+processus et ne sont pas garanties contre un arrêt brutal, une panne disque ou
+un processus tiers du même UID intervenant au même instant. Lorsqu’une identité
+ou un emplacement devient incertain, Lufa échoue et préserve les résidus au lieu
+de les supprimer à l’aveugle. Voir [les limites de sécurité](docs/installation-safety.md).

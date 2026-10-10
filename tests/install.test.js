@@ -214,7 +214,7 @@ test('CLI requires an explicit non-interactive confirmation and --yes installs i
       confirmed.stdout,
       /Source : .*catalogue local de développement/,
     );
-    assert.match(confirmed.stdout, /Version : hello-agent@1\.0\.0/);
+    assert.match(confirmed.stdout, /Version : hello-agent@1\.2\.0/);
     assert.match(confirmed.stdout, /Destination :/);
   } finally {
     await rm(project, { recursive: true, force: true });

@@ -14,20 +14,20 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 
 ## Vue d’ensemble
 
-| Étape | Sujet | État | Résultat / blocage |
-|---|---|---|---|
-| 0 | Spike de compatibilité `.agents/skills/` | Validée | Revue indépendante positive ; résultats bornés à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26. |
-| 1 | Décisions techniques et socle du dépôt | Validée | Revue indépendante positive ; job CI équivalent passé localement sous Node 24.20.0. CI distante non exécutée. |
-| 2 | Contrat et premier catalogue valide | Validée | Revue indépendante positive ; schéma, sécurité des chemins, preuves et index déterministe couverts par 16 tests sous Node 24.20.0. |
-| 3 | CLI de consultation du catalogue | Validée | Revue indépendante positive ; 22 tests sous Node 24, JSON sans bruit npm et commande d’installation indicative documentés. |
-| 4 | Installation initiale et verrouillage | Validée | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS. |
-| 5 | Inventaire et mises à jour sûres | À faire | — |
-| 6 | Catalogue web en lecture seule | À faire | — |
-| 7 | Publication, cache et portabilité | À faire | — |
-| 8 | Pilote et décision de lancement | À faire | — |
+| Étape | Sujet                                    | État     | Résultat / blocage                                                                                                                 |
+| ----- | ---------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Spike de compatibilité `.agents/skills/` | Validée  | Revue indépendante positive ; résultats bornés à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26.                                       |
+| 1     | Décisions techniques et socle du dépôt   | Validée  | Revue indépendante positive ; job CI équivalent passé localement sous Node 24.20.0. CI distante non exécutée.                      |
+| 2     | Contrat et premier catalogue valide      | Validée  | Revue indépendante positive ; schéma, sécurité des chemins, preuves et index déterministe couverts par 16 tests sous Node 24.20.0. |
+| 3     | CLI de consultation du catalogue         | Validée  | Revue indépendante positive ; 22 tests sous Node 24, JSON sans bruit npm et commande d’installation indicative documentés.         |
+| 4     | Installation initiale et verrouillage    | Validée  | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS.                     |
+| 5     | Inventaire et mises à jour sûres         | Validée | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                           |
+| 6     | Catalogue web en lecture seule           | À faire  | —                                                                                                                                  |
+| 7     | Publication, cache et portabilité        | À faire  | —                                                                                                                                  |
+| 8     | Pilote et décision de lancement          | À faire  | —                                                                                                                                  |
 
-**Dernière étape validée :** étape 4 — Installation initiale et verrouillage.
-**Prochaine étape :** étape 5 — Inventaire et mises à jour sûres.
+**Dernière étape validée :** étape 5 — Inventaire et mises à jour sûres.
+**Prochaine étape :** étape 6 — Catalogue web en lecture seule.
 
 ## Journal des validations
 
@@ -76,11 +76,11 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 
 ### Étape 5 — Inventaire et mises à jour sûres
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation finale :** en attente
+- **État :** Validée
+- **Résumé / livrable :** Commandes d’inventaire/outdated/update, aperçu, détection des conflits et sauvegarde forcée.
+- **Vérifications effectuées :** `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, types, index catalogue et 41 tests passés) ; `git diff --check` passé. Tests projet couvrant installed/outdated JSON, aperçu/diff, version à jour, conflits SHA-256, `--force` et backup, orphelin persistant, confirmation, rollback fichier+lock, lock fidèle, déplacement d’un répertoire de skill hors projet puis symlink (aucune suppression externe), provenance/source locale et sérialisation install/update.
+- **Décision / points à corriger :** Revue indépendante positive. Threat model borné : verrou `.lufa.install.lock` partagé, chemins/symlinks inspectés et rollback par identité ; les résidus d’identité/emplacement incertains sont préservés et signalés. Pas de garantie face à un tiers du même UID, un arrêt brutal ou une panne disque ; les sauvegardes peuvent contenir des données sensibles, sont conservées même après rollback et doivent être gérées par le projet consommateur. Validation de portabilité limitée à Node 24/macOS pour le parcours CWD ancré de l’étape 4 ; Linux/Windows restent ouverts à l’étape 7.
+- **Validation finale :** validée par le coordinateur après revue indépendante.
 
 ### Étape 6 — Catalogue web en lecture seule
 

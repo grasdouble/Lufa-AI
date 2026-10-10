@@ -26,15 +26,15 @@ type Artifact = {
   provenance: { repository: string };
   versions: ArtifactVersion[];
 };
-type LockedFile = { path: string; sha256: string };
-type LockEntry = {
+export type LockedFile = { path: string; sha256: string };
+export type LockEntry = {
   id: string;
   version: string;
   target: string;
   source: string;
   files: LockedFile[];
 };
-type LockFile = { schemaVersion: 1; installs: LockEntry[] };
+export type LockFile = { schemaVersion: 1; installs: LockEntry[] };
 type PlannedFile = {
   path: string;
   sourcePath: string;
@@ -168,6 +168,7 @@ function validateLock(value: unknown): LockFile {
   }
 
   const ids = new Set<string>();
+  const destinations = new Set<string>();
   for (const entry of value.installs) {
     if (
       typeof entry !== 'object' ||
@@ -206,12 +207,23 @@ function validateLock(value: unknown): LockFile {
         );
       }
       assertSafeRelativePath(file.path, lockName);
+      if (!file.path.startsWith(`${targetDirectory}/${entry.id}/`)) {
+        throw new InstallError(
+          `Le chemin « ${file.path} » ne correspond pas à la cible verrouillée de « ${entry.id} ».`,
+        );
+      }
+      if (destinations.has(file.path)) {
+        throw new InstallError(
+          `Le chemin « ${file.path} » est attribué plusieurs fois dans ${lockName}.`,
+        );
+      }
+      destinations.add(file.path);
     }
   }
   return value as LockFile;
 }
 
-async function readLock(projectRoot: string): Promise<LockFile> {
+export async function readLock(projectRoot: string): Promise<LockFile> {
   const lockPath = path.join(projectRoot, lockName);
   try {
     const details = await lstat(lockPath);
@@ -234,7 +246,7 @@ async function readLock(projectRoot: string): Promise<LockFile> {
   }
 }
 
-async function acquireProjectLock(
+export async function acquireProjectLock(
   projectRoot: string,
   onWait?: () => void,
 ): Promise<ReleaseProjectLock> {
@@ -293,7 +305,7 @@ async function acquireProjectLock(
   }
 }
 
-async function ensureProjectRoot(project: string): Promise<string> {
+export async function ensureProjectRoot(project: string): Promise<string> {
   let projectStat;
   try {
     projectStat = await lstat(project);
@@ -453,7 +465,9 @@ async function enterVerifiedDirectory(
   };
 }
 
-async function withProcessCwdLock<T>(operation: () => Promise<T>): Promise<T> {
+export async function withProcessCwdLock<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
   const previous = processCwdQueue;
   let release!: () => void;
   processCwdQueue = new Promise<void>((resolve) => {

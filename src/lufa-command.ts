@@ -2,6 +2,11 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInstallCommand } from './install-command.ts';
+import {
+  runInstalledCommand,
+  runOutdatedCommand,
+  runUpdateCommand,
+} from './project-command.ts';
 
 type ArtifactSummary = {
   id: string;
@@ -48,12 +53,19 @@ Commandes :
                             Afficher le détail d’un artefact
   install <identifiant[@version]> [--project <chemin>] [--yes]
                             Installer une version dans le projet courant
+  installed [--project <chemin>] [--json]
+                            Lister les artefacts consignés dans lufa.lock.json
+  outdated [--project <chemin>] [--json]
+                            Comparer le lock aux dernières versions stables
+  update [identifiant] [--project <chemin>] [--force] [--yes] [--json]
+                            Prévisualiser et appliquer une mise à jour stable
   help                      Afficher cette aide
 
 Options :
   --json                    Produire une sortie JSON stable pour list, search et show
   --project <chemin>        Cibler un dossier de projet pour install
   --yes, --non-interactive  Confirmer explicitement sans invite interactive
+  --force                   Sauvegarder les fichiers locaux en conflit avant remplacement
   -h, --help                Afficher cette aide`;
 
 class CliError extends Error {
@@ -165,6 +177,18 @@ export async function runCatalogCli(args: string[]): Promise<void> {
     await runInstallCommand(commandArgs);
     return;
   }
+  if (command === 'installed') {
+    await runInstalledCommand(commandArgs);
+    return;
+  }
+  if (command === 'outdated') {
+    await runOutdatedCommand(commandArgs);
+    return;
+  }
+  if (command === 'update') {
+    await runUpdateCommand(commandArgs);
+    return;
+  }
   if (command === 'help') {
     if (commandArgs.length > 0) {
       throw new CliError(`Usage : npm run lufa -- help\n\n${usage}`);
@@ -175,7 +199,7 @@ export async function runCatalogCli(args: string[]): Promise<void> {
 
   if (command !== 'list' && command !== 'search' && command !== 'show') {
     throw new CliError(
-      `Commande inconnue « ${command} ». Commandes disponibles : list, search, show, install. Consulter l’aide avec npm run lufa -- --help.`,
+      `Commande inconnue « ${command} ». Commandes disponibles : list, search, show, install, installed, outdated, update. Consulter l’aide avec npm run lufa -- --help.`,
     );
   }
 
