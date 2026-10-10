@@ -6,6 +6,49 @@ Catalogue d’artefacts pour agents IA, avec une première version centrée sur 
 - [Plan d’implémentation](docs/IMPLEMENTATION_PLAN.md)
 - [Suivi d’implémentation](docs/IMPLEMENTATION_STATUS.md)
 
+## Installation et utilisation après publication
+
+Le paquet npm `lufa-ai` n’est pas encore publié. Une fois disponible, installez
+la CLI globalement, puis lancez-la depuis le projet à gérer :
+
+```sh
+npm install --global lufa-ai
+cd /chemin/vers/projet
+lufa list
+lufa search <terme>
+lufa show <id>
+lufa install <id>[@version]
+lufa installed
+lufa outdated
+lufa update [id]
+```
+
+Sans version précisée, `install` choisit la dernière version stable et demande
+confirmation ; utilisez `--yes` pour l’automatisation. `update` demande également
+confirmation ; pour l’automatiser, utilisez `lufa update <id> --yes` ou
+`lufa update --yes` (toutes les entrées verrouillées). Après revue, `--force`
+permet de remplacer uniquement les fichiers gérés par Lufa qui ont été modifiés
+ou supprimés localement. Un fichier existant concerné est sauvegardé sous
+`.lufa/backups/` ; un fichier supprimé est recréé sans sauvegarde. Cette option
+ne permet jamais d’écraser une destination existante non gérée par Lufa.
+
+Les skills sont installés dans `.agents/skills/` et leur version est enregistrée
+dans `lufa.lock.json`, à versionner avec le projet. Leur découverte dans
+`.agents/skills/` a été vérifiée avec GitHub Copilot CLI 1.0.95 et OpenCode CLI
+v2.0.26 ; elle n’est pas garantie pour les futures versions, les clients IDE ou
+les services cloud. Les options `--json` fournissent une sortie JSON pour les
+commandes qui affichent des résultats ou un plan. `lufa update` met à jour les
+skills du projet ; pour mettre à jour la CLI elle-même, utilisez
+`npm update --global lufa-ai`.
+
+Les payloads sont récupérés selon le contexte depuis le cache de contenus
+SHA-256, le registre configuré (GitHub Pages par défaut, remplaçable via
+`LUFA_REGISTRY_URL`) ou, si le mécanisme de repli l’autorise, l’instantané inclus
+au paquet. Chaque payload est vérifié par empreinte SHA-256 avant toute écriture.
+Hors ligne, l’installation n’est possible que si les octets correspondant
+exactement à la version demandée sont déjà présents dans le cache ou l’instantané
+inclus au paquet.
+
 ## Développement local
 
 Prérequis : Node.js 24 ou ultérieur et npm. À la racine du dépôt :
@@ -81,9 +124,14 @@ npm run catalog:check    # valide les sources et vérifie la fraîcheur de l’i
 ## Consulter le catalogue
 
 Les commandes `list`, `search`, `show` et `outdated` rafraîchissent l’index du
-registre statique, sans modifier le projet et sans envoyer de données du projet.
-L’installation lit toujours les sources incluses du paquet : elle ne télécharge
-pas d’artefact.
+registre configuré (GitHub Pages par défaut, remplaçable via `LUFA_REGISTRY_URL`),
+sans modifier le projet et sans envoyer de données du projet.
+L’installation récupère les payloads selon le contexte depuis le cache de
+contenus SHA-256, le registre configuré (GitHub Pages par défaut, remplaçable via
+`LUFA_REGISTRY_URL`) ou, si le mécanisme de repli l’autorise, l’instantané inclus
+au paquet. Chaque payload est vérifié par empreinte SHA-256 avant toute écriture.
+Hors ligne, seuls les octets exacts présents dans le cache ou l’instantané inclus
+au paquet peuvent être installés.
 
 Le paquet npm prévu est provisoirement nommé `lufa-ai` (aucune publication n’a
 été effectuée ; la disponibilité du nom peut évoluer). Pour compiler et créer un
@@ -194,8 +242,12 @@ npm run lufa -- install hello-agent@1.0.0 --project ../mon-projet
 
 Sans version, la CLI choisit la version stable la plus récente (jamais une
 préversion implicite). Une version donnée, préversion comprise, peut être
-sélectionnée explicitement. L’installateur affiche la source locale du catalogue,
-la version, la destination et les fichiers, puis demande confirmation. En
+sélectionnée explicitement. L’installateur affiche la provenance déclarée par
+l’auteur (dépôt) et la source résolue de l’index (registre configuré — GitHub
+Pages par défaut, remplaçable via `LUFA_REGISTRY_URL` —, cache ou instantané
+embarqué), mais ne rapporte pas l’origine effective de chaque
+payload. En développement local, l’index provient du catalogue local. Il affiche
+aussi la version, la destination et les fichiers, puis demande confirmation. En
 automatisation, confirmer explicitement avec `--yes` ou `--non-interactive` :
 
 ```sh
@@ -207,10 +259,14 @@ Sans `--project`, la destination est le `process.cwd()` de la CLI.
 
 Les fichiers sont installés sous `.agents/skills/<identifiant>/` et suivis avec
 leurs empreintes dans `lufa.lock.json`. `install` résout les métadonnées depuis
-l’index distant (ou son cache / l’instantané du paquet en cas d’indisponibilité),
-télécharge uniquement les fichiers de la version sélectionnée, vérifie toutes
-les empreintes publiées puis les met en cache avant d’entrer dans la transaction
-projet. Il n’accepte que les réponses `text/markdown`, `text/plain` ou
+le registre configuré (GitHub Pages par défaut, remplaçable via
+`LUFA_REGISTRY_URL`) ou, en cas d’indisponibilité, depuis son cache / l’instantané
+du paquet. Il obtient uniquement les fichiers de la version sélectionnée et les met en cache
+avant d’entrer dans la transaction projet. Chaque payload peut provenir du cache
+de contenus SHA-256, du registre configuré (GitHub Pages par défaut, remplaçable
+via `LUFA_REGISTRY_URL`) ou, si le mécanisme de repli l’autorise, de l’instantané
+inclus au paquet ; son empreinte publiée est vérifiée avant écriture. Il n’accepte
+que les réponses `text/markdown`, `text/plain` ou
 `application/octet-stream` ; une réponse `text/html` est rejetée même si ses
 octets ont le hash annoncé. Tous les fichiers d’une version sont reçus et
 vérifiés avant l’écriture de nouveaux blobs cache. Une nouvelle installation présente un aperçu et demande confirmation ;
@@ -242,18 +298,25 @@ npm run lufa -- update hello-agent --project ../mon-projet --yes
 
 `installed` liste uniquement les entrées de `lufa.lock.json` (identifiant,
 version exacte, cible et fichiers enregistrés). `outdated` compare chaque entrée
-à la dernière version stable de l’index distant (ou du cache/instantané de
-repli) et distingue `outdated`, `up-to-date` et `unavailable`. Les options
+à la dernière version stable de l’index du registre configuré (GitHub Pages par
+défaut, remplaçable via `LUFA_REGISTRY_URL`, ou du cache/instantané de repli) et
+distingue `outdated`, `up-to-date` et `unavailable`. Les options
 `--json` de ces commandes produisent des tableaux JSON sur `stdout`.
 
 `update [identifiant]` (sans identifiant : toutes les entrées verrouillées)
-affiche la provenance déclarée (dépôt), la source distante/cache réellement lue,
-les versions verrouillées/cibles, les ajouts, modifications et diffs, ainsi que
-les fichiers retirés de la nouvelle version. `update` résout l’index distant,
+affiche la provenance déclarée par l’auteur (dépôt) et la source résolue de
+l’index (registre configuré — GitHub Pages par défaut, remplaçable via
+`LUFA_REGISTRY_URL` —, cache ou instantané de repli), sans rapporter l’origine
+effective de chaque payload, ainsi que les versions verrouillées/cibles, les
+ajouts, modifications et diffs, et les fichiers retirés de la nouvelle version.
+`update` résout l’index du registre configuré,
 évite tout téléchargement si aucune version stable plus récente n’est disponible
 et pré-vérifie les conflits locaux connus avant de demander les seuls fichiers
-des versions à mettre à jour. Les fichiers distants sont tous vérifiés avant
-l’aperçu et l’application transactionnelle ; les conflits, sauvegardes et le
+des versions à mettre à jour. Chaque payload peut provenir du cache de contenus
+SHA-256, du registre configuré (GitHub Pages par défaut, remplaçable via
+`LUFA_REGISTRY_URL`) ou, si le mécanisme de repli l’autorise, de l’instantané
+inclus au paquet ; son empreinte publiée est vérifiée avant l’aperçu et
+l’application transactionnelle. Les conflits, sauvegardes et le
 lock conservent leur comportement existant. Une mise à jour exige une
 confirmation ; les scripts non interactifs doivent fournir `--yes` ou
 `--non-interactive`. `update --json` fournit le plan JSON ; avec confirmation,
