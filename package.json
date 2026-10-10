@@ -15,6 +15,7 @@
     "catalog:validate": "node --experimental-strip-types src/catalog-command.ts validate",
     "catalog:build": "node --experimental-strip-types src/catalog-command.ts build",
     "catalog:check": "node --experimental-strip-types src/catalog-command.ts check",
+    "lufa": "node --experimental-strip-types src/lufa-command.ts",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run catalog:check && npm test"
   },
   "devDependencies": {

@@ -19,15 +19,15 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 0 | Spike de compatibilité `.agents/skills/` | Validée | Revue indépendante positive ; résultats bornés à Copilot CLI 1.0.95 et OpenCode CLI v2.0.26. |
 | 1 | Décisions techniques et socle du dépôt | Validée | Revue indépendante positive ; job CI équivalent passé localement sous Node 24.20.0. CI distante non exécutée. |
 | 2 | Contrat et premier catalogue valide | Validée | Revue indépendante positive ; schéma, sécurité des chemins, preuves et index déterministe couverts par 16 tests sous Node 24.20.0. |
-| 3 | CLI de consultation du catalogue | À faire | — |
+| 3 | CLI de consultation du catalogue | Validée | Revue indépendante positive ; 22 tests sous Node 24, JSON sans bruit npm et commande d’installation indicative documentés. |
 | 4 | Installation initiale et verrouillage | À faire | — |
 | 5 | Inventaire et mises à jour sûres | À faire | — |
 | 6 | Catalogue web en lecture seule | À faire | — |
 | 7 | Publication, cache et portabilité | À faire | — |
 | 8 | Pilote et décision de lancement | À faire | — |
 
-**Dernière étape validée :** étape 2 — Contrat et premier catalogue valide.
-**Prochaine étape :** étape 3 — CLI de consultation du catalogue.
+**Dernière étape validée :** étape 3 — CLI de consultation du catalogue.
+**Prochaine étape :** étape 4 — Installation initiale et verrouillage.
 
 ## Journal des validations
 
@@ -60,11 +60,11 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 
 ### Étape 3 — CLI de consultation du catalogue
 
-- **État :** À faire
-- **Résumé / livrable :** —
-- **Vérifications effectuées :** —
-- **Décision / points à corriger :** —
-- **Validation finale :** en attente
+- **État :** Validée
+- **Résumé / livrable :** Commandes locales `list`, `search` et `show`, y compris sortie JSON, consommant l’index généré sans écrire dans le projet courant.
+- **Vérifications effectuées :** `ASDF_NODEJS_VERSION=24.20.0 asdf exec npm run check` sous Node.js 24.20.0 (format, lint, types, index valide et 22 tests passés) ; `git diff --check` ; démos de `list`, `search hello-agent`, `show hello-agent` et `show hello-agent --json` via le script npm.
+- **Décision / points à corriger :** CLI limitée à la consultation locale ; aucun `bin`, distribution, installation effective, réseau, cache, web ou mutation de projet. `npm run --silent lufa -- list --json` fournit un JSON sans bannière npm ; `show` donne la commande d’installation à titre indicatif seulement, l’installation restant différée à l’étape 4.
+- **Validation finale :** validée par le coordinateur après revue indépendante.
 
 ### Étape 4 — Installation initiale et verrouillage
 
