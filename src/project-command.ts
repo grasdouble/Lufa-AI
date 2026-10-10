@@ -15,7 +15,11 @@ import { stdin, stdout } from 'node:process';
 import path from 'node:path';
 import { gt, rcompare } from 'semver';
 import { loadCatalog, projectRoot as catalogProjectRoot } from './catalog.ts';
-import { resolveCatalogIndex } from './registry-index.ts';
+import {
+  fetchVerifiedArtifactFiles,
+  resolveCatalogIndex,
+  type RegistryArtifact,
+} from './registry-index.ts';
 import {
   acquireProjectLock,
   ensureProjectRoot,
@@ -26,7 +30,7 @@ import {
   type LockFile,
 } from './install-command.ts';
 
-type ArtifactFile = { path: string; destination: string };
+type ArtifactFile = { path: string; destination: string; sha256?: string };
 type ArtifactVersion = { version: string; files: ArtifactFile[] };
 type Artifact = {
   id: string;
@@ -401,6 +405,8 @@ async function makeArtifactPlan(
   entry: LockEntry,
   artifact: Artifact | undefined,
   root: string,
+  remoteContents?: Map<string, Buffer>,
+  remoteProvenance?: string,
 ): Promise<ArtifactPlan | undefined> {
   const version = artifact && newestStable(artifact);
   if (!artifact || !version || !gt(version.version, entry.version))
@@ -409,7 +415,9 @@ async function makeArtifactPlan(
     throw new InstallError(
       `Type non pris en charge pour update : « ${artifact.type} ».`,
     );
-  const manifest = await artifactManifest(root, entry.id);
+  const manifest = remoteProvenance
+    ? { provenance: { repository: remoteProvenance } }
+    : await artifactManifest(root, entry.id);
   const oldFiles = new Map(entry.files.map((file) => [file.path, file]));
   const newFiles = new Map<
     string,
@@ -423,13 +431,14 @@ async function makeArtifactPlan(
         `Destination refusée pour ${entry.id} : « ${file.destination} ».`,
       );
     }
-    const source = path.join(
-      root,
-      'catalog',
-      entry.id,
-      ...file.path.split('/'),
-    );
-    const contents = await readFile(source);
+    const source = remoteContents
+      ? `registre/cache : ${entry.id}@${version.version}/${file.path}`
+      : path.join(root, 'catalog', entry.id, ...file.path.split('/'));
+    const contents = remoteContents
+      ? remoteContents.get(file.path)
+      : await readFile(source);
+    if (!contents)
+      throw new InstallError(`Contenu absent pour ${entry.id}/${file.path}.`);
     newFiles.set(file.destination, {
       contents,
       source,
@@ -519,7 +528,9 @@ async function makeArtifactPlan(
     fromVersion: entry.version,
     toVersion: version.version,
     provenance: manifest.provenance.repository,
-    sourceLocal: path.join(root, 'catalog', entry.id),
+    sourceLocal: remoteContents
+      ? 'registre distant ou cache vérifié'
+      : path.join(root, 'catalog', entry.id),
     target: entry.target,
     changes,
   };
@@ -1367,7 +1378,11 @@ export async function runUpdateCommand(
         `« ${parsed.id} » ne figure pas dans ${lockName}.`,
       );
     const root = options.catalogRoot ?? sourceRoot;
-    const artifacts = (await loadCatalog(root)) as unknown as Artifact[];
+    const remote = !options.catalogRoot;
+    const resolved = remote ? await resolveCatalogIndex() : undefined;
+    const artifacts = remote
+      ? (resolved!.index.artifacts as unknown as Artifact[])
+      : ((await loadCatalog(root)) as unknown as Artifact[]);
     const catalog = new Map(
       artifacts.map((artifact) => [artifact.id, artifact]),
     );
@@ -1380,10 +1395,84 @@ export async function runUpdateCommand(
         `Aucune version stable disponible dans le catalogue pour « ${unavailable.id} » ; aucune mise à jour effectuée.`,
       );
     }
+    const updateCandidates = selected
+      .map((entry) => ({ entry, artifact: catalog.get(entry.id) }))
+      .filter(
+        (item): item is { entry: LockEntry; artifact: Artifact } =>
+          !!item.artifact &&
+          !!newestStable(item.artifact) &&
+          gt(newestStable(item.artifact)!.version, item.entry.version),
+      );
+    if (remote && !parsed.force) {
+      const conflicts: string[] = [];
+      const updatingIds = new Set(
+        updateCandidates.map(({ entry }) => entry.id),
+      );
+      const lockedElsewhere = new Set(
+        lock.installs
+          .filter((entry) => !updatingIds.has(entry.id))
+          .flatMap((entry) => entry.files.map((file) => file.path)),
+      );
+      for (const { entry, artifact } of updateCandidates) {
+        const version = newestStable(artifact)!;
+        const oldFiles = new Map(entry.files.map((file) => [file.path, file]));
+        for (const file of version.files) {
+          validateProjectPath(file.destination);
+          const prefix = `${targetDirectory}/${entry.id}/`;
+          if (!file.destination.startsWith(prefix)) {
+            throw new InstallError(
+              `Destination refusée pour ${entry.id} : « ${file.destination} » doit rester sous « ${prefix} ».`,
+            );
+          }
+          if (lockedElsewhere.has(file.destination)) {
+            conflicts.push(file.destination);
+            continue;
+          }
+          const snapshot = await readSnapshot(project, file.destination);
+          const previous = oldFiles.get(file.destination);
+          if (
+            (previous && (!snapshot || snapshot.sha256 !== previous.sha256)) ||
+            (!previous && snapshot)
+          ) {
+            conflicts.push(file.destination);
+          }
+        }
+      }
+      if (conflicts.length) {
+        console.log(
+          `conflit local détecté avant téléchargement : ${conflicts.join(', ')}.`,
+        );
+        throw new InstallError(
+          `${conflicts.length} conflit(s) local(aux) détecté(s) avant téléchargement : ${conflicts.join(', ')}. Aucun fichier modifié ; Utiliser --force après revue.`,
+        );
+      }
+    }
+    const downloaded = new Map<string, Map<string, Buffer>>();
+    if (remote) {
+      for (const { entry, artifact } of updateCandidates) {
+        const version = newestStable(artifact)!;
+        downloaded.set(
+          entry.id,
+          await fetchVerifiedArtifactFiles(
+            entry.id,
+            version.version,
+            version.files as RegistryArtifact['versions'][number]['files'],
+            resolved!.source !== 'remote',
+          ),
+        );
+      }
+    }
     const plans = (
       await Promise.all(
         selected.map((entry) =>
-          makeArtifactPlan(project, entry, catalog.get(entry.id), root),
+          makeArtifactPlan(
+            project,
+            entry,
+            catalog.get(entry.id),
+            root,
+            downloaded.get(entry.id),
+            remote ? catalog.get(entry.id)?.provenance.repository : undefined,
+          ),
         ),
       )
     ).filter((plan): plan is ArtifactPlan => plan !== undefined);

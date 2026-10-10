@@ -23,11 +23,11 @@ On ne considère pas une étape comme validée uniquement parce que son code est
 | 4     | Installation initiale et verrouillage    | Validée  | Revue indépendante positive dans le threat model borné ; 34 tests sous Node 24, protections testées sur macOS.                     |
 | 5     | Inventaire et mises à jour sûres         | Validée  | Revue indépendante positive ; 41 tests sous Node 24, conflits, backups, orphelins et rollback couverts.                            |
 | 6     | Catalogue web en lecture seule           | Validée  | Revue indépendante positive ; 46 tests, smoke HTTP, vérifications Chromium mobile/bureau et parcours clavier passés.               |
-| 7     | Publication, cache et portabilité        | En cours | Livraisons 7.1/7.2/7.3a validées ; 7.3b (fichiers distants) à commencer.                                                         |
+| 7     | Publication, cache et portabilité        | En cours | Livraisons 7.1/7.2/7.3a/7.3b validées ; validations CI distantes et Pages restent en attente.                                       |
 | 8     | Pilote et décision de lancement          | À faire  | —                                                                                                                                  |
 
 **Dernière étape validée :** étape 6 — Catalogue web en lecture seule.
-**Étape 7 en cours :** livraison 7.3b — Fichiers distants et empreintes.
+**Étape 7 en cours :** contrôles externes de portabilité et disponibilité Pages ; aucune publication effectuée.
 
 ## Journal des validations
 
@@ -109,7 +109,9 @@ Créer l’entrée d’une étape dès son démarrage et la tenir à jour pendan
 - **Validation livraison 7.2 :** validée par le coordinateur après revue indépendante.
 - **Livraison 7.3a :** Validée — lecture/rafraîchissement/cache de l’index distant pour `list`, `search`, `show` et `outdated`. URL par défaut GitHub Pages, HTTP limité au loopback, surcharge HTTPS `LUFA_REGISTRY_URL`, cache utilisateur configurable par `LUFA_CACHE_DIR`, validation stricte, refus des symlinks et taille maximale de 5 Mio, replis cache/instantané avec avertissement `stderr` ; `install`/`update` restent locaux jusqu’à 7.3b. Vérifié sur macOS/Node 24.20.0 par `ASDF_NODEJS_VERSION=24.20.0 npm run check` (format, lint, types, 61 tests avec HTTP local, smoke offline du tarball) et `git diff --check` ; aucun accès GitHub réel, déploiement, commit ou push. Les vérifications de chemins ne prétendent pas résister aux courses d’un processus tiers du même UID. Revue indépendante positive.
 - **Validation livraison 7.3a :** validée par le coordinateur après revue indépendante.
-- **Livraison 7.3b :** En cours — téléchargement à la demande, empreintes et cache de contenus pour install/update.
+- **Livraison 7.3b :** Validée — index schéma 2 avec SHA-256 par fichier ; téléchargements à la demande bornés et sans redirection ; MIME vérifié ; tous les blobs d’un artefact sont hachés avant écriture du moindre nouveau blob cache ; recours hors ligne seulement pour le contenu exact déjà disponible. Vérifié avec fixtures HTTP locaux sous Node 24.20.0/macOS : `npm run check` (68 tests et smoke offline du tarball) et `git diff --check`. Aucun accès GitHub réel, déploiement, commit ou push.
+- **Validation livraison 7.3b :** validée par le coordinateur après revue indépendante.
+- **Décision / points à corriger :** Les jobs distants Linux/Windows de la matrice 7.1 et le workflow Pages manuel restent à exécuter/configurer avant de considérer l’étape 7 prête pour un lancement public. Aucun push ni déploiement n’a été déclenché.
 
 ### Étape 8 — Pilote et décision de lancement
 

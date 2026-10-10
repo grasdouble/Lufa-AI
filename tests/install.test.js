@@ -15,13 +15,23 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import test from 'node:test';
+import test, { after } from 'node:test';
 import { runInstallCommand } from '../src/install-command.ts';
+import { createRegistryFixture } from './registry-fixture.js';
 
 const cliPath = fileURLToPath(
   new URL('../src/lufa-command.ts', import.meta.url),
 );
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+const registry = await createRegistryFixture();
+const cacheDirectory = await mkdtemp(
+  path.join(tmpdir(), 'lufa-install-cache-'),
+);
+
+after(async () => {
+  await registry.close();
+  await rm(cacheDirectory, { recursive: true, force: true });
+});
 
 async function withFixture(callback, versions = ['1.0.0']) {
   const root = await mkdtemp(path.join(tmpdir(), 'lufa-install-test-'));
@@ -187,7 +197,15 @@ test('CLI requires an explicit non-interactive confirmation and --yes installs i
         '--project',
         project,
       ],
-      { cwd: repoRoot, encoding: 'utf8' },
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          LUFA_REGISTRY_URL: registry.url,
+          LUFA_CACHE_DIR: cacheDirectory,
+        },
+      },
     );
     assert.equal(noConfirmation.status, 1);
     assert.match(noConfirmation.stderr, /confirmer explicitement avec --yes/);
@@ -207,13 +225,18 @@ test('CLI requires an explicit non-interactive confirmation and --yes installs i
         project,
         '--yes',
       ],
-      { cwd: repoRoot, encoding: 'utf8' },
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          LUFA_REGISTRY_URL: registry.url,
+          LUFA_CACHE_DIR: cacheDirectory,
+        },
+      },
     );
     assert.equal(confirmed.status, 0, confirmed.stderr);
-    assert.match(
-      confirmed.stdout,
-      /Source : .*catalogue local de développement/,
-    );
+    assert.match(confirmed.stdout, /Source : .*registre remote/);
     assert.match(confirmed.stdout, /Version : hello-agent@1\.2\.0/);
     assert.match(confirmed.stdout, /Destination :/);
   } finally {

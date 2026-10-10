@@ -7,6 +7,7 @@ let responseBody = Buffer.from(
 );
 let responseHeaders = {};
 const requests = [];
+const fileResponses = new Map();
 
 const server = createServer((request, response) => {
   if (request.url === '/__control' && request.method === 'POST') {
@@ -14,9 +15,18 @@ const server = createServer((request, response) => {
     request.on('data', (chunk) => chunks.push(chunk));
     request.on('end', () => {
       const configuration = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-      responseStatus = configuration.status;
-      responseBody = Buffer.from(configuration.body, 'base64');
-      responseHeaders = configuration.headers || {};
+      const configured = {
+        status: configuration.status,
+        body: Buffer.from(configuration.body, 'base64'),
+        headers: configuration.headers || {},
+        delayMs: configuration.delayMs || 0,
+      };
+      if (configuration.url) fileResponses.set(configuration.url, configured);
+      else {
+        responseStatus = configured.status;
+        responseBody = configured.body;
+        responseHeaders = configured.headers;
+      }
       response.writeHead(204).end();
     });
     return;
@@ -27,6 +37,7 @@ const server = createServer((request, response) => {
     return;
   }
 
+  const configured = fileResponses.get(request.url);
   const chunks = [];
   request.on('data', (chunk) => chunks.push(chunk));
   request.on('end', () => {
@@ -36,11 +47,30 @@ const server = createServer((request, response) => {
       headers: request.headers,
       body: Buffer.concat(chunks).toString('utf8'),
     });
-    response.writeHead(responseStatus, {
-      'content-type': 'application/json; charset=utf-8',
-      ...responseHeaders,
-    });
-    response.end(responseBody);
+    const selected =
+      configured ||
+      (request.url === '/registry/catalog-index.json'
+        ? {
+            status: responseStatus,
+            body: responseBody,
+            headers: responseHeaders,
+            delayMs: 0,
+          }
+        : {
+            status: 404,
+            body: Buffer.from('Not found'),
+            headers: {},
+            delayMs: 0,
+          });
+    const send = () => {
+      response.writeHead(selected.status, {
+        'content-type': 'application/json; charset=utf-8',
+        ...selected.headers,
+      });
+      response.end(selected.body);
+    };
+    if (selected.delayMs) setTimeout(send, selected.delayMs);
+    else send();
   });
 });
 

@@ -152,7 +152,8 @@ plus de 5 Mio est ignoré. Ces messages ne polluent pas le JSON écrit sur
 `stdout`.
 
 Le détail indique également `lufa install <identifiant>` comme commande
-d’installation.
+d’installation. L’index publié est versionné (schéma 2) et fournit une empreinte
+SHA-256 hexadécimale minuscule pour chaque fichier.
 
 Démo du skill pilote :
 
@@ -201,11 +202,20 @@ npm run lufa -- install hello-agent@1.0.0 --project /chemin/vers/projet --yes
 Sans `--project`, la destination est le `process.cwd()` de la CLI.
 
 Les fichiers sont installés sous `.agents/skills/<identifiant>/` et suivis avec
-leurs empreintes dans `lufa.lock.json`. Une nouvelle installation présente un
-aperçu et demande confirmation ; une réinstallation intacte est idempotente et
-revient sans aperçu ni confirmation. Les automatisations doivent confirmer les
-nouvelles installations avec `--yes`. La CLI lit le catalogue local de
-développement, sans réseau ni cache. Les installations Lufa d’un même projet
+leurs empreintes dans `lufa.lock.json`. `install` résout les métadonnées depuis
+l’index distant (ou son cache / l’instantané du paquet en cas d’indisponibilité),
+télécharge uniquement les fichiers de la version sélectionnée, vérifie toutes
+les empreintes publiées puis les met en cache avant d’entrer dans la transaction
+projet. Il n’accepte que les réponses `text/markdown`, `text/plain` ou
+`application/octet-stream` ; une réponse `text/html` est rejetée même si ses
+octets ont le hash annoncé. Tous les fichiers d’une version sont reçus et
+vérifiés avant l’écriture de nouveaux blobs cache. Une nouvelle installation présente un aperçu et demande confirmation ;
+une réinstallation intacte est idempotente et revient sans aperçu ni
+confirmation. Les automatisations doivent confirmer les nouvelles installations
+avec `--yes`. Les contenus du cache sont rangés par SHA-256 sous
+`contents/sha256/<préfixe>/<empreinte>` dans le cache utilisateur. Seuls des
+fichiers ordinaires isolés sont acceptés ; symlinks, hardlinks, contenus
+corrompus et chemins de cache suspects sont refusés. Les installations Lufa d’un même projet
 sont sérialisées, mais cette coordination ne protège pas contre un processus
 tiers du même UID qui modifie simultanément les mêmes chemins. Voir la [note de
 sécurité et de threat model](docs/installation-safety.md) pour le rollback et les
@@ -233,16 +243,22 @@ repli) et distingue `outdated`, `up-to-date` et `unavailable`. Les options
 `--json` de ces commandes produisent des tableaux JSON sur `stdout`.
 
 `update [identifiant]` (sans identifiant : toutes les entrées verrouillées)
-affiche la provenance déclarée (dépôt), le chemin local du catalogue réellement
-lu, les versions verrouillées/cibles, les ajouts, modifications et diffs, ainsi
-que les fichiers retirés de la nouvelle version. Une mise à jour exige une
+affiche la provenance déclarée (dépôt), la source distante/cache réellement lue,
+les versions verrouillées/cibles, les ajouts, modifications et diffs, ainsi que
+les fichiers retirés de la nouvelle version. `update` résout l’index distant,
+évite tout téléchargement si aucune version stable plus récente n’est disponible
+et pré-vérifie les conflits locaux connus avant de demander les seuls fichiers
+des versions à mettre à jour. Les fichiers distants sont tous vérifiés avant
+l’aperçu et l’application transactionnelle ; les conflits, sauvegardes et le
+lock conservent leur comportement existant. Une mise à jour exige une
 confirmation ; les scripts non interactifs doivent fournir `--yes` ou
 `--non-interactive`. `update --json` fournit le plan JSON ; avec confirmation,
 la sortie JSON inclut aussi `applied` et les notes de résultat. Les versions
 cibles sont toujours stables ; il n’y a pas de sélection de préversion pour
-`update`. Temporairement, `update` reste intégralement local au paquet et ne
-consulte pas l’index distant ; le téléchargement des fichiers distants et la
-mise à jour depuis ceux-ci sont reportés à la livraison 7.3b.
+`update`. Hors ligne, une installation n’est permise que si l’index versionné et
+les octets correspondants, validés par SHA-256, sont disponibles dans le cache ou
+dans l’instantané du paquet. Les messages de fraîcheur et de cache sont écrits
+sur `stderr`, jamais dans le JSON `stdout`.
 
 Avant toute écriture, les empreintes SHA-256 du lock sont comparées aux fichiers
 locaux. Un fichier modifié ou supprimé bloque par défaut l’opération. Après

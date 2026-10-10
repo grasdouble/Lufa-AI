@@ -10,6 +10,7 @@ const bundledIndexPath = new URL(
   '../generated/catalog-index.json',
   import.meta.url,
 );
+const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 
 export async function createRegistryFixture(initialIndex) {
   const initialBody =
@@ -43,16 +44,55 @@ export async function createRegistryFixture(initialIndex) {
   const origin = `http://127.0.0.1:${port}`;
   const url = `${origin}/registry/catalog-index.json`;
 
+  async function control(configuration) {
+    const body = Buffer.isBuffer(configuration.body)
+      ? configuration.body
+      : Buffer.from(
+          typeof configuration.body === 'string'
+            ? configuration.body
+            : JSON.stringify(configuration.body),
+        );
+    const encoded = body.toString('base64');
+    await fetch(`${origin}/__control`, {
+      method: 'POST',
+      body: JSON.stringify({ ...configuration, body: encoded }),
+    });
+  }
+
+  for (const artifact of initialBody.artifacts || []) {
+    for (const version of artifact.versions || []) {
+      for (const file of version.files || []) {
+        const source = new URL(
+          `catalog/${artifact.id}/${file.path}`,
+          `file://${repositoryRoot}/`,
+        );
+        try {
+          await control({
+            url: `/registry/catalog/${[artifact.id, ...file.path.split('/')].map(encodeURIComponent).join('/')}`,
+            body: await readFile(source),
+            status: 200,
+            headers: { 'content-type': 'application/octet-stream' },
+          });
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+      }
+    }
+  }
+
   return {
     url,
     async setResponse(body, status = 200, headers = {}) {
-      const encoded = Buffer.from(
-        typeof body === 'string' ? body : JSON.stringify(body),
-      ).toString('base64');
-      await fetch(`${origin}/__control`, {
-        method: 'POST',
-        body: JSON.stringify({ body: encoded, headers, status }),
-      });
+      await control({ body, headers, status });
+    },
+    async setFileResponse(
+      relativeUrl,
+      body,
+      status = 200,
+      headers = {},
+      delayMs = 0,
+    ) {
+      await control({ url: relativeUrl, body, headers, status, delayMs });
     },
     async requests() {
       return fetch(`${origin}/__requests`).then((response) => response.json());

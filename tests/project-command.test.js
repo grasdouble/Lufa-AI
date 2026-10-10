@@ -112,6 +112,7 @@ test('update previews content diffs and requires confirmation; a successful upda
     );
     const lockPath = path.join(project, 'lufa.lock.json');
     const originalLock = await readFile(lockPath, 'utf8');
+    const beforeUpdatePreview = (await registry.requests()).length;
 
     const preview = cli([
       'update',
@@ -126,16 +127,24 @@ test('update previews content diffs and requires confirmation; a successful upda
     assert.equal(plan[0].fromVersion, '1.1.0');
     assert.equal(plan[0].toVersion, '1.2.0');
     assert.equal(plan[0].provenance, 'https://github.com/Grasdouble/Lufa-AI');
-    assert.equal(
-      plan[0].sourceLocal,
-      path.join(repoRoot, 'catalog/hello-agent'),
-    );
+    assert.equal(plan[0].sourceLocal, 'registre distant ou cache vérifié');
     assert.equal(plan[0].target, '.agents/skills');
     assert.ok(plan[0].changes.some(({ kind }) => kind === 'added'));
     assert.ok(
       plan[0].changes.some(
         ({ kind, diff }) => kind === 'modified' && diff?.includes('+'),
       ),
+    );
+    const downloadedPaths = (await registry.requests())
+      .slice(beforeUpdatePreview)
+      .map(({ url }) => url)
+      .filter((url) => url.startsWith('/registry/catalog/'));
+    assert.deepEqual(
+      downloadedPaths.sort(),
+      [
+        '/registry/catalog/hello-agent/versions/1.2.0/SKILL.md',
+        '/registry/catalog/hello-agent/versions/1.2.0/greeting-template.md',
+      ].sort(),
     );
     assert.ok(
       plan[0].changes.some(
@@ -157,7 +166,10 @@ test('update previews content diffs and requires confirmation; a successful upda
       applied.stdout,
       /Provenance du dépôt : https:\/\/github\.com\/Grasdouble\/Lufa-AI/,
     );
-    assert.match(applied.stdout, /Source locale lue : .*catalog\/hello-agent/);
+    assert.match(
+      applied.stdout,
+      /Source locale lue : registre distant ou cache vérifié/,
+    );
     assert.match(applied.stdout, /Orphelin conservé \(non supprimé\)/);
     assert.equal(
       await readFile(orphan, 'utf8'),
@@ -202,9 +214,16 @@ test('update previews content diffs and requires confirmation; a successful upda
     const current = cli(['outdated', '--project', project, '--json']);
     assert.equal(current.status, 0, current.stderr);
     assert.equal(JSON.parse(current.stdout)[0].availability, 'up-to-date');
+    const beforeCurrentUpdate = (await registry.requests()).length;
     const currentUpdate = cli(['update', 'hello-agent', '--project', project]);
     assert.equal(currentUpdate.status, 0, currentUpdate.stderr);
     assert.match(currentUpdate.stdout, /déjà à jour/);
+    assert.equal(
+      (await registry.requests())
+        .slice(beforeCurrentUpdate)
+        .some(({ url }) => url.startsWith('/registry/catalog/')),
+      false,
+    );
   });
 });
 
@@ -216,6 +235,7 @@ test('local SHA-256 conflicts stop by default; --force backs up the local file b
     await writeFile(skill, localText);
     const lockPath = path.join(project, 'lufa.lock.json');
     const originalLock = await readFile(lockPath, 'utf8');
+    const beforeBlockedUpdate = (await registry.requests()).length;
 
     const blocked = cli([
       'update',
@@ -227,6 +247,12 @@ test('local SHA-256 conflicts stop by default; --force backs up the local file b
     assert.equal(blocked.status, 1);
     assert.match(blocked.stdout, /conflit local/);
     assert.match(blocked.stderr, /Utiliser --force/);
+    assert.equal(
+      (await registry.requests())
+        .slice(beforeBlockedUpdate)
+        .some(({ url }) => url.startsWith('/registry/catalog/')),
+      false,
+    );
     assert.equal(await readFile(skill, 'utf8'), localText);
     assert.equal(await readFile(lockPath, 'utf8'), originalLock);
 
@@ -250,6 +276,70 @@ test('local SHA-256 conflicts stop by default; --force backs up the local file b
     assert.equal(await readFile(backupPath, 'utf8'), localText);
     assert.match(backupLine, /^Sauvegarde : \.lufa\/backups\//);
     assert.notEqual(await readFile(skill, 'utf8'), localText);
+  });
+});
+
+test('a rejected remote update checksum leaves every project file and lock unchanged', async () => {
+  await withProject(async (project) => {
+    install(project);
+    const lockPath = path.join(project, 'lufa.lock.json');
+    const originalLock = await readFile(lockPath, 'utf8');
+    const originalSkill = await readFile(
+      path.join(project, '.agents/skills/hello-agent/SKILL.md'),
+    );
+    const originalOrphan = await readFile(
+      path.join(project, '.agents/skills/hello-agent/legacy-notes.md'),
+    );
+    const invalid = structuredClone(
+      JSON.parse(
+        await readFile(
+          new URL('../generated/catalog-index.json', import.meta.url),
+          'utf8',
+        ),
+      ),
+    );
+    invalid.artifacts[0].versions.find(
+      ({ version }) => version === '1.2.0',
+    ).files[0].sha256 = 'c'.repeat(64);
+    await registry.setResponse(invalid);
+    try {
+      const result = cli([
+        'update',
+        'hello-agent',
+        '--project',
+        project,
+        '--yes',
+      ]);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /Checksum SHA-256 invalide/);
+      assert.equal(await readFile(lockPath, 'utf8'), originalLock);
+      assert.deepEqual(
+        await readFile(
+          path.join(project, '.agents/skills/hello-agent/SKILL.md'),
+        ),
+        originalSkill,
+      );
+      assert.deepEqual(
+        await readFile(
+          path.join(project, '.agents/skills/hello-agent/legacy-notes.md'),
+        ),
+        originalOrphan,
+      );
+      await assert.rejects(
+        readFile(
+          path.join(project, '.agents/skills/hello-agent/greeting-template.md'),
+        ),
+      );
+    } finally {
+      await registry.setResponse(
+        JSON.parse(
+          await readFile(
+            new URL('../generated/catalog-index.json', import.meta.url),
+            'utf8',
+          ),
+        ),
+      );
+    }
   });
 });
 

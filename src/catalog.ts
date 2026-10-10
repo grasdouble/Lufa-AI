@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { lstat, realpath, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Ajv2020, type ErrorObject } from 'ajv/dist/2020.js';
@@ -18,7 +19,7 @@ type Compatibility = {
 type ArtifactVersion = {
   version: string;
   publishedAt: string;
-  files: { path: string; destination: string }[];
+  files: { path: string; destination: string; sha256?: string }[];
   compatibilities: Compatibility[];
 };
 
@@ -337,7 +338,17 @@ export async function loadCatalog(root = projectRoot): Promise<Artifact[]> {
 
 export async function buildCatalogIndex(root = projectRoot): Promise<string> {
   const artifacts = await loadCatalog(root);
-  return format(`${JSON.stringify({ schemaVersion: 1, artifacts })}\n`, {
+  for (const artifact of artifacts) {
+    for (const version of artifact.versions) {
+      for (const file of version.files) {
+        const contents = await readFile(
+          path.join(root, 'catalog', artifact.id, ...file.path.split('/')),
+        );
+        file.sha256 = createHash('sha256').update(contents).digest('hex');
+      }
+    }
+  }
+  return format(`${JSON.stringify({ schemaVersion: 2, artifacts })}\n`, {
     parser: 'json',
   });
 }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   access,
   lstat,
@@ -330,6 +331,11 @@ test('static registry export contains exactly the validated index and payload fi
           ),
         );
         assert.deepEqual(published, source, `${relativePath} matches source`);
+        assert.equal(
+          createHash('sha256').update(published).digest('hex'),
+          file.sha256,
+          `${relativePath} matches the published checksum`,
+        );
       }
     }
   }

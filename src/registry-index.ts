@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import {
   lstat,
+  link,
   mkdir,
   open,
   readFile,
@@ -27,7 +28,7 @@ export type RegistryArtifact = {
   versions: {
     version: string;
     publishedAt: string;
-    files: { path: string; destination: string }[];
+    files: { path: string; destination: string; sha256: string }[];
     compatibilities: {
       environment: string;
       level: 'declared' | 'verified';
@@ -43,7 +44,7 @@ export type RegistryArtifact = {
 };
 
 export type CatalogIndex = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   artifacts: RegistryArtifact[];
 };
 
@@ -64,6 +65,13 @@ const bundledIndexPath = path.join(
 const cacheFileName = 'catalog-index-cache.json';
 const requestTimeoutMs = 3_000;
 const maxIndexBytes = 5 * 1024 * 1024;
+const maxArtifactFileBytes = 2 * 1024 * 1024;
+const maxArtifactBytes = 10 * 1024 * 1024;
+const allowedArtifactContentTypes = new Set([
+  'text/markdown',
+  'text/plain',
+  'application/octet-stream',
+]);
 const ajv = new Ajv2020({
   allErrors: true,
   strict: true,
@@ -75,7 +83,14 @@ const artifactSchema = JSON.parse(
     'utf8',
   ),
 ) as object;
-const validateArtifact = ajv.compile<RegistryArtifact>(artifactSchema);
+const registryArtifactSchema = structuredClone(artifactSchema) as {
+  $defs: { file: { properties: Record<string, unknown> } };
+};
+registryArtifactSchema.$defs.file.properties.sha256 = {
+  type: 'string',
+  pattern: '^[a-f0-9]{64}$',
+};
+const validateArtifact = ajv.compile<RegistryArtifact>(registryArtifactSchema);
 
 export class RegistryIndexError extends Error {
   constructor(message: string) {
@@ -197,6 +212,11 @@ function validateArtifactMetadata(artifact: RegistryArtifact): void {
     const destinations = new Set<string>();
     for (const file of version.files) {
       assertSafeRelativePath(file.path, `${artifact.id}@${version.version}`);
+      if (!/^[a-f0-9]{64}$/.test(file.sha256)) {
+        throw new RegistryIndexError(
+          `${artifact.id}@${version.version} contient une empreinte SHA-256 invalide.`,
+        );
+      }
       assertSafeRelativePath(
         file.destination,
         `${artifact.id}@${version.version}`,
@@ -216,18 +236,28 @@ export function validateCatalogIndex(value: unknown): CatalogIndex {
   if (
     !isObject(value) ||
     Object.keys(value).sort().join(',') !== 'artifacts,schemaVersion' ||
-    value.schemaVersion !== 1 ||
+    value.schemaVersion !== 2 ||
     !Array.isArray(value.artifacts) ||
     value.artifacts.length === 0
   ) {
     throw new RegistryIndexError(
-      'Structure d’index invalide (schemaVersion 1 requis).',
+      'Structure d’index invalide (schemaVersion 2 requis).',
     );
   }
 
   const ids = new Set<string>();
   for (const candidate of value.artifacts) {
     if (!validateArtifact(candidate)) {
+      const hashFailure = validateArtifact.errors?.find(
+        (error) =>
+          error.instancePath.endsWith('/sha256') &&
+          (error.keyword === 'pattern' || error.keyword === 'type'),
+      );
+      if (hashFailure) {
+        throw new RegistryIndexError(
+          'Une empreinte SHA-256 publiée doit être une chaîne hexadécimale minuscule de 64 caractères.',
+        );
+      }
       throw new RegistryIndexError(
         `Métadonnées d’artefact invalides : ${ajv.errorsText(validateArtifact.errors)}.`,
       );
@@ -357,9 +387,9 @@ async function inspectCacheFile(
       `Le fichier de cache est un lien symbolique : ${cachePath}.`,
     );
   }
-  if (!details.isFile()) {
+  if (!details.isFile() || details.nlink !== 1) {
     throw new RegistryIndexError(
-      `Le fichier de cache n’est pas un fichier ordinaire : ${cachePath}.`,
+      `Le fichier de cache n’est pas un fichier ordinaire isolé : ${cachePath}.`,
     );
   }
   if (checkSize && details.size > maxIndexBytes) {
@@ -391,6 +421,7 @@ async function readCache(): Promise<{
       const opened = await handle.stat();
       if (
         !opened.isFile() ||
+        opened.nlink !== 1 ||
         opened.dev !== checked.dev ||
         opened.ino !== checked.ino ||
         opened.size > maxIndexBytes
@@ -456,7 +487,7 @@ async function writeCache(index: CatalogIndex): Promise<void> {
       await handle.close();
     }
     const staged = await lstat(temporaryPath);
-    if (staged.isSymbolicLink() || !staged.isFile()) {
+    if (staged.isSymbolicLink() || !staged.isFile() || staged.nlink !== 1) {
       throw new RegistryIndexError(
         'Le fichier temporaire du cache a changé de type avant son renommage.',
       );
@@ -494,6 +525,278 @@ export function getRegistryUrl(value = process.env.LUFA_REGISTRY_URL): URL {
     }
   }
   return url;
+}
+
+function blobPath(directory: string, sha256: string): string {
+  return path.join(directory, 'contents', 'sha256', sha256.slice(0, 2), sha256);
+}
+
+async function readVerifiedBlob(
+  cacheDirectory: string,
+  sha256: string,
+): Promise<Buffer | undefined> {
+  const filename = blobPath(cacheDirectory, sha256);
+  if (!(await inspectCacheFile(filename, false))) return undefined;
+  const before = await lstat(filename);
+  const handle = await open(
+    filename,
+    constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+  );
+  let contents: Buffer;
+  try {
+    const opened = await handle.stat();
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino ||
+      opened.size > maxArtifactFileBytes
+    ) {
+      throw new RegistryIndexError(
+        `Contenu du cache dangereux ou trop volumineux : ${filename}.`,
+      );
+    }
+    contents = await handle.readFile();
+  } finally {
+    await handle.close();
+  }
+  if (createHash('sha256').update(contents).digest('hex') !== sha256) {
+    throw new RegistryIndexError(
+      `Contenu corrompu dans le cache (${sha256}) ; supprimez ce fichier de cache après vérification.`,
+    );
+  }
+  return contents;
+}
+
+async function writeVerifiedBlob(
+  cacheDirectory: string,
+  sha256: string,
+  contents: Buffer,
+): Promise<void> {
+  const target = blobPath(cacheDirectory, sha256);
+  const directory = path.dirname(target);
+  await inspectCacheDirectory(directory, true);
+  const temporary = path.join(directory, `.content-${randomUUID()}.tmp`);
+  const handle = await open(temporary, 'wx', 0o600);
+  let identity: { dev: number; ino: number } | undefined;
+  let committed = false;
+  try {
+    const details = await handle.stat();
+    identity = { dev: details.dev, ino: details.ino };
+    await handle.writeFile(contents);
+    await handle.sync();
+    await handle.close();
+    const staged = await lstat(temporary);
+    if (
+      !staged.isFile() ||
+      staged.nlink !== 1 ||
+      staged.dev !== identity.dev ||
+      staged.ino !== identity.ino
+    ) {
+      throw new RegistryIndexError(
+        'Le contenu temporaire du cache a changé avant son enregistrement.',
+      );
+    }
+    try {
+      await link(temporary, target);
+      committed = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      const existing = await readVerifiedBlob(cacheDirectory, sha256);
+      if (!existing) throw error;
+    }
+  } finally {
+    await handle.close().catch(() => undefined);
+    if (identity) {
+      const current = await lstat(temporary).catch(
+        (error: NodeJS.ErrnoException) =>
+          error.code === 'ENOENT' ? undefined : Promise.reject(error),
+      );
+      if (
+        current?.isFile() &&
+        current.dev === identity.dev &&
+        current.ino === identity.ino
+      ) {
+        const targetDetails = committed ? await lstat(target) : undefined;
+        const safeTemporaryLink =
+          current.nlink === 1 ||
+          (committed &&
+            current.nlink === 2 &&
+            targetDetails?.dev === identity.dev &&
+            targetDetails.ino === identity.ino);
+        if (safeTemporaryLink) await unlink(temporary);
+      }
+    }
+    if (committed) {
+      await inspectCacheFile(target, false);
+    }
+  }
+}
+
+async function readBundledFile(filePath: string): Promise<Buffer | undefined> {
+  const absolute = path.join(packageRoot, 'catalog', ...filePath.split('/'));
+  let current = path.join(packageRoot, 'catalog');
+  try {
+    for (const segment of filePath.split('/')) {
+      current = path.join(current, segment);
+      const details = await lstat(current);
+      if (details.isSymbolicLink()) {
+        throw new RegistryIndexError(
+          `Fichier de l’instantané symbolique interdit : ${filePath}.`,
+        );
+      }
+    }
+    const details = await lstat(absolute);
+    if (!details.isFile() || details.nlink !== 1) {
+      throw new RegistryIndexError(
+        `Fichier de l’instantané non ordinaire : ${filePath}.`,
+      );
+    }
+    return await readFile(absolute);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+async function fetchArtifactFile(url: URL): Promise<Buffer> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: { accept: 'application/octet-stream, */*;q=0.1' },
+      signal: AbortSignal.timeout(requestTimeoutMs),
+      redirect: 'error',
+      cache: 'no-store',
+    });
+  } catch {
+    throw new RegistryIndexError(
+      `Téléchargement impossible pour ${url.pathname} (délai dépassé, réseau indisponible ou redirection refusée).`,
+    );
+  }
+  if (response.status !== 200) {
+    throw new RegistryIndexError(
+      `Le registre a répondu HTTP ${response.status} pour ${url.pathname}.`,
+    );
+  }
+  const contentType = response.headers
+    .get('content-type')
+    ?.split(';', 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (!contentType || !allowedArtifactContentTypes.has(contentType)) {
+    throw new RegistryIndexError(
+      `Content-Type refusé pour ${url.pathname} : « ${contentType ?? 'absent'} ». MIME autorisés : text/markdown, text/plain, application/octet-stream.`,
+    );
+  }
+  const lengthHeader = response.headers.get('content-length');
+  if (
+    lengthHeader &&
+    (!/^\d+$/.test(lengthHeader) || Number(lengthHeader) > maxArtifactFileBytes)
+  ) {
+    throw new RegistryIndexError(
+      `Fichier distant trop volumineux ou Content-Length invalide : ${url.pathname}.`,
+    );
+  }
+  const reader = response.body?.getReader();
+  if (!reader)
+    throw new RegistryIndexError(`Réponse vide pour ${url.pathname}.`);
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  while (true) {
+    let result: ReadableStreamReadResult<Uint8Array>;
+    try {
+      result = await reader.read();
+    } catch {
+      throw new RegistryIndexError(`Réponse incomplète pour ${url.pathname}.`);
+    }
+    if (result.done) break;
+    totalBytes += result.value.byteLength;
+    if (totalBytes > maxArtifactFileBytes) {
+      await reader.cancel();
+      throw new RegistryIndexError(
+        `Fichier distant trop volumineux (maximum ${maxArtifactFileBytes} octets) : ${url.pathname}.`,
+      );
+    }
+    chunks.push(Buffer.from(result.value));
+  }
+  return Buffer.concat(chunks);
+}
+
+export async function fetchVerifiedArtifactFiles(
+  artifactId: string,
+  version: string,
+  files: RegistryArtifact['versions'][number]['files'],
+  allowBundledFallback = false,
+): Promise<Map<string, Buffer>> {
+  const cacheDirectory = await inspectCacheDirectory(
+    getRegistryCacheDirectory(),
+    true,
+  );
+  const registryUrl = getRegistryUrl();
+  const base = new URL('./', registryUrl);
+  const results = new Map<string, Buffer>();
+  const pendingBlobs = new Map<string, Buffer>();
+  let totalBytes = 0;
+  for (const file of files) {
+    assertSafeRelativePath(file.path, `${artifactId}@${version}`);
+    if (!/^[a-f0-9]{64}$/.test(file.sha256)) {
+      throw new RegistryIndexError(
+        `Empreinte SHA-256 invalide pour ${artifactId}@${version}/${file.path}.`,
+      );
+    }
+    const cachedContents = await readVerifiedBlob(cacheDirectory, file.sha256);
+    let contents = cachedContents;
+    if (!contents) {
+      if (allowBundledFallback) {
+        contents = await readBundledFile(`${artifactId}/${file.path}`);
+        if (
+          contents &&
+          createHash('sha256').update(contents).digest('hex') !== file.sha256
+        ) {
+          contents = undefined;
+        }
+      }
+      if (!contents) {
+        const segments = ['catalog', artifactId, ...file.path.split('/')];
+        const url = new URL(segments.map(encodeURIComponent).join('/'), base);
+        try {
+          contents = await fetchArtifactFile(url);
+        } catch (error) {
+          throw new RegistryIndexError(
+            `${error instanceof Error ? error.message : String(error)} Le contenu exact est absent du cache ; réessayez avec une connexion réseau disponible.`,
+          );
+        }
+      }
+      if (createHash('sha256').update(contents).digest('hex') !== file.sha256) {
+        throw new RegistryIndexError(
+          `Checksum SHA-256 invalide pour ${artifactId}@${version}/${file.path} ; aucun contenu non vérifié n’a été mis en cache ou écrit dans le projet.`,
+        );
+      }
+    }
+    if (contents.byteLength > maxArtifactFileBytes) {
+      throw new RegistryIndexError(
+        `Fichier ${artifactId}@${version}/${file.path} dépasse ${maxArtifactFileBytes} octets.`,
+      );
+    }
+    totalBytes += contents.byteLength;
+    if (totalBytes > maxArtifactBytes) {
+      throw new RegistryIndexError(
+        `L’artefact ${artifactId}@${version} dépasse la limite totale de ${maxArtifactBytes} octets.`,
+      );
+    }
+    if (!cachedContents) pendingBlobs.set(file.sha256, contents);
+    results.set(file.path, contents);
+  }
+  // Do not persist any newly downloaded bytes until every file in this exact
+  // artifact/version has been received and its published digest has passed.
+  for (const [sha256, contents] of pendingBlobs) {
+    await writeVerifiedBlob(cacheDirectory, sha256, contents);
+  }
+  process.stderr.write(
+    `Contenus exacts ${artifactId}@${version} : cache local vérifié (${totalBytes} octets) ; utilisables hors ligne.\n`,
+  );
+  return results;
 }
 
 async function fetchRemoteIndex(): Promise<CatalogIndex> {

@@ -17,8 +17,13 @@ import { stdin, stdout } from 'node:process';
 import { valid as validSemver, rcompare } from 'semver';
 import { loadCatalog } from './catalog.ts';
 import { resolvePackageRoot } from './package-root.ts';
+import {
+  fetchVerifiedArtifactFiles,
+  resolveCatalogIndex,
+  type RegistryArtifact,
+} from './registry-index.ts';
 
-type InstallFile = { path: string; destination: string };
+type InstallFile = { path: string; destination: string; sha256?: string };
 type ArtifactVersion = { version: string; files: InstallFile[] };
 type Artifact = {
   id: string;
@@ -1002,10 +1007,19 @@ async function runInstallWithProjectLock(
   options: InstallOptions,
 ): Promise<void> {
   const { id, version: requestedVersion } = parseSpecifier(parsed.specifier);
-  const artifacts = await loadCatalog(root);
-  const artifact = artifacts.find((candidate) => candidate.id === id) as
-    Artifact | undefined;
-  if (!artifact) throw new InstallError(`Artefact inconnu « ${id} ».`);
+  const remote = !options.catalogRoot;
+  const resolved = remote ? await resolveCatalogIndex() : undefined;
+  const artifacts = remote
+    ? (resolved!.index.artifacts as unknown as Artifact[])
+    : ((await loadCatalog(root)) as unknown as Artifact[]);
+  const artifact = artifacts.find((candidate) => candidate.id === id);
+  if (!artifact) {
+    throw new InstallError(
+      resolved && resolved.source !== 'remote'
+        ? `Artefact « ${id} » absent de l’index en cache et de l’instantané embarqué ; reconnectez-vous au registre pour actualiser le catalogue.`
+        : `Artefact inconnu « ${id} ».`,
+    );
+  }
   if (artifact.type !== 'skill') {
     throw new InstallError(
       `Type d’artefact non pris en charge : « ${artifact.type} ».`,
@@ -1026,31 +1040,107 @@ async function runInstallWithProjectLock(
     );
   }
 
-  const manifestPath = path.join(root, 'catalog', id, 'artifact.json');
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
-    provenance: { repository: string };
-  };
-  const plannedFiles: PlannedFile[] = [];
+  const manifest = remote
+    ? (artifact as RegistryArtifact)
+    : (JSON.parse(
+        await readFile(path.join(root, 'catalog', id, 'artifact.json'), 'utf8'),
+      ) as { provenance: { repository: string } });
+  const expectedPrefix = `${targetDirectory}/${id}/`;
   for (const file of version.files) {
     assertSafeRelativePath(file.destination, 'Destination du catalogue');
-    const expectedPrefix = `${targetDirectory}/${id}/`;
     if (!file.destination.startsWith(expectedPrefix)) {
       throw new InstallError(
         `Destination refusée pour ${id} : « ${file.destination} » doit rester sous « ${expectedPrefix} ».`,
       );
     }
-    const { sourcePath, contents } = await readSourceFile(root, id, file.path);
+  }
+
+  const lock = await readLock(projectRoot);
+  const existingEntry = lock.installs.find((entry) => entry.id === id);
+  if (existingEntry && remote) {
+    const nextFiles = version.files
+      .map((file) => ({ path: file.destination, sha256: file.sha256! }))
+      .sort((left, right) =>
+        left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+      );
+    const previousFiles = [...existingEntry.files].sort((left, right) =>
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+    );
+    if (
+      existingEntry.version !== version.version ||
+      existingEntry.source !== manifest.provenance.repository ||
+      JSON.stringify(previousFiles) !== JSON.stringify(nextFiles)
+    ) {
+      throw new InstallError(
+        `« ${id} » est déjà verrouillé différemment. Les mises à jour ne sont pas prises en charge par install ; aucun fichier modifié.`,
+      );
+    }
+    for (const file of version.files) {
+      await inspectDestinationParents(projectRoot, file.destination);
+      const contents = await readFile(
+        path.join(projectRoot, ...file.destination.split('/')),
+      ).catch(() => undefined);
+      if (
+        !contents ||
+        createHash('sha256').update(contents).digest('hex') !== file.sha256
+      ) {
+        throw new InstallError(
+          `Conflit : le fichier géré « ${file.destination} » a été modifié ou supprimé. Aucun écrasement effectué.`,
+        );
+      }
+    }
+    console.log(
+      `Déjà installé : ${id}@${version.version} (empreintes vérifiées).`,
+    );
+    return;
+  }
+
+  const otherLockedPaths = new Set(
+    lock.installs
+      .filter((entry) => entry.id !== id)
+      .flatMap((entry) => entry.files.map((file) => file.path)),
+  );
+  if (!existingEntry) {
+    for (const file of version.files) {
+      if (otherLockedPaths.has(file.destination)) {
+        throw new InstallError(
+          `La destination « ${file.destination} » appartient déjà à une autre entrée du verrou.`,
+        );
+      }
+      if (await inspectDestinationParents(projectRoot, file.destination)) {
+        throw new InstallError(
+          `Conflit : le fichier « ${file.destination} » existe déjà et n’est pas géré par cette installation.`,
+        );
+      }
+    }
+  }
+
+  const remoteContents = remote
+    ? await fetchVerifiedArtifactFiles(
+        id,
+        version.version,
+        version.files as RegistryArtifact['versions'][number]['files'],
+        resolved!.source !== 'remote',
+      )
+    : undefined;
+  const plannedFiles: PlannedFile[] = [];
+  for (const file of version.files) {
+    const local = remote
+      ? undefined
+      : await readSourceFile(root, id, file.path);
+    const contents = remoteContents?.get(file.path) ?? local?.contents;
+    if (!contents)
+      throw new InstallError(`Contenu absent pour ${id}/${file.path}.`);
     plannedFiles.push({
       path: file.destination,
-      sourcePath,
+      sourcePath: remote
+        ? `${resolved!.source} : ${id}@${version.version}/${file.path}`
+        : local!.sourcePath,
       destinationPath: path.join(projectRoot, ...file.destination.split('/')),
       contents,
       sha256: createHash('sha256').update(contents).digest('hex'),
     });
   }
-
-  const lock = await readLock(projectRoot);
-  const existingEntry = lock.installs.find((entry) => entry.id === id);
   const nextFiles = plannedFiles
     .map(({ path: filePath, sha256 }) => ({ path: filePath, sha256 }))
     .sort((left, right) =>
@@ -1090,24 +1180,8 @@ async function runInstallWithProjectLock(
     return;
   }
 
-  const otherLockedPaths = new Set(
-    lock.installs.flatMap((entry) => entry.files.map((file) => file.path)),
-  );
-  for (const file of plannedFiles) {
-    if (otherLockedPaths.has(file.path)) {
-      throw new InstallError(
-        `La destination « ${file.path} » appartient déjà à une autre entrée du verrou.`,
-      );
-    }
-    if (await inspectDestinationParents(projectRoot, file.path)) {
-      throw new InstallError(
-        `Conflit : le fichier « ${file.path} » existe déjà et n’est pas géré par cette installation.`,
-      );
-    }
-  }
-
   console.log(
-    `Source : ${manifest.provenance.repository} (catalogue local de développement)`,
+    `Source : ${manifest.provenance.repository} (${remote ? `registre ${resolved!.source}` : 'catalogue local de développement'})`,
   );
   console.log(`Version : ${id}@${version.version}`);
   console.log(`Destination : ${projectRoot}`);

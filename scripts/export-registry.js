@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   lstat,
   mkdir,
@@ -158,7 +159,14 @@ async function main() {
           ...file.path.split('/'),
         );
         await mkdir(path.dirname(destination), { recursive: true });
-        await writeFile(destination, await readFile(resolvedSource));
+        const contents = await readFile(resolvedSource);
+        const sha256 = createHash('sha256').update(contents).digest('hex');
+        if (sha256 !== file.sha256) {
+          throw new CatalogValidationError(
+            `L’empreinte de ${artifact.id}/${file.path} ne correspond plus à l’index validé.`,
+          );
+        }
+        await writeFile(destination, contents);
       }
     }
   }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
   lstat,
+  link,
   mkdir,
   mkdtemp,
   readFile,
@@ -239,6 +240,22 @@ test('an unsafe remote artifact path is rejected before use', async () => {
   });
 });
 
+test('remote index requires lowercase 64-character SHA-256 values', async () => {
+  await withCache(async (cacheDirectory) => {
+    const invalid = structuredClone(bundledIndex);
+    invalid.artifacts[0].versions[0].files[0].sha256 = 'A'.repeat(64);
+    await registry.setResponse(invalid);
+    const result = cli(['list', '--json'], repoRoot, cacheDirectory);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /empreinte SHA-256 publiée/);
+    assert.deepEqual(
+      JSON.parse(result.stdout).map(({ id }) => id),
+      ['hello-agent'],
+    );
+    await registry.setResponse(bundledIndex);
+  });
+});
+
 test('cache directory symlinks are ignored for reads and never used for writes', async (t) => {
   await withCache(async (cacheDirectory) => {
     const targetDirectory = path.join(cacheDirectory, 'real-cache');
@@ -413,6 +430,415 @@ test('outdated compares the lock against the resolved remote index without fetch
       assert.match(outdated.stderr, /distant actualisé/);
     } finally {
       await rm(projectDirectory, { recursive: true, force: true });
+    }
+  });
+});
+
+test('install fetches exact remote bytes, caches them, and reinstalls offline', async () => {
+  await withCache(async (cacheDirectory) => {
+    const version = bundledIndex.artifacts[0].versions.find(
+      ({ version }) => version === '1.2.0',
+    );
+    const file = version.files[0];
+    const projectA = await mkdtemp(path.join(tmpdir(), 'lufa-remote-install-'));
+    const projectB = await mkdtemp(
+      path.join(tmpdir(), 'lufa-offline-install-'),
+    );
+    try {
+      await registry.setResponse(bundledIndex);
+      const before = (await registry.requests()).length;
+      const downloaded = cli(
+        ['install', 'hello-agent@1.2.0', '--project', projectA, '--yes'],
+        repoRoot,
+        cacheDirectory,
+      );
+      assert.equal(downloaded.status, 0, downloaded.stderr);
+      assert.match(downloaded.stderr, /Contenus exacts hello-agent@1\.2\.0/);
+      const assetUrl = `/registry/catalog/hello-agent/${file.path
+        .split('/')
+        .map(encodeURIComponent)
+        .join('/')}`;
+      await registry.setFileResponse(
+        assetUrl,
+        await readFile(
+          new URL(`../catalog/hello-agent/${file.path}`, import.meta.url),
+        ),
+        200,
+        { 'content-type': 'text/markdown; charset=utf-8' },
+      );
+      assert.ok(
+        (await registry.requests())
+          .slice(before)
+          .some(({ method, url }) => method === 'GET' && url === assetUrl),
+      );
+      assert.ok(
+        await lstat(
+          path.join(
+            cacheDirectory,
+            'contents',
+            'sha256',
+            file.sha256.slice(0, 2),
+            file.sha256,
+          ),
+        ),
+      );
+
+      const reinstalled = cli(
+        ['install', 'hello-agent@1.2.0', '--project', projectA, '--yes'],
+        repoRoot,
+        cacheDirectory,
+      );
+      assert.equal(reinstalled.status, 0, reinstalled.stderr);
+      assert.match(reinstalled.stdout, /Déjà installé/);
+
+      await registry.setResponse({ unavailable: true }, 503);
+      const requestCount = (await registry.requests()).length;
+      const offline = cli(
+        ['install', 'hello-agent@1.2.0', '--project', projectB, '--yes'],
+        repoRoot,
+        cacheDirectory,
+      );
+      assert.equal(offline.status, 0, offline.stderr);
+      assert.match(offline.stderr, /potentiellement périmé/);
+      assert.equal(
+        await readFile(
+          path.join(projectB, '.agents/skills/hello-agent/SKILL.md'),
+          'utf8',
+        ),
+        await readFile(
+          new URL(
+            '../catalog/hello-agent/versions/1.2.0/SKILL.md',
+            import.meta.url,
+          ),
+          'utf8',
+        ),
+      );
+      const newRequests = (await registry.requests()).slice(requestCount);
+      assert.equal(
+        newRequests.some(({ url }) => url.startsWith('/registry/catalog/')),
+        false,
+      );
+    } finally {
+      await rm(projectA, { recursive: true, force: true });
+      await rm(projectB, { recursive: true, force: true });
+      await registry.setResponse(bundledIndex);
+    }
+  });
+});
+
+test('bad checksum and failed/unsafe artifact responses leave project and lock unchanged', async () => {
+  const originalIndex = structuredClone(bundledIndex);
+  const artifact = originalIndex.artifacts[0];
+  const version = artifact.versions.find(({ version }) => version === '1.2.0');
+  const file = version.files[0];
+  const assetUrl = `/registry/catalog/hello-agent/${file.path
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/')}`;
+  const fileBytes = await readFile(
+    new URL(`../catalog/hello-agent/${file.path}`, import.meta.url),
+  );
+
+  async function assertNoProjectMutation(
+    index,
+    status,
+    headers = {},
+    body = fileBytes,
+    delayMs = 0,
+    expected,
+  ) {
+    await withCache(async (cacheDirectory) => {
+      const project = await mkdtemp(
+        path.join(tmpdir(), 'lufa-download-failure-'),
+      );
+      try {
+        const lockContents = '{"schemaVersion":1,"installs":[]}\n';
+        await writeFile(path.join(project, 'lufa.lock.json'), lockContents);
+        await writeFile(path.join(project, 'keep.txt'), 'unchanged');
+        await registry.setResponse(index);
+        await registry.setFileResponse(
+          assetUrl,
+          body,
+          status,
+          { 'content-type': 'application/octet-stream', ...headers },
+          delayMs,
+        );
+        const result = cli(
+          ['install', 'hello-agent@1.2.0', '--project', project, '--yes'],
+          repoRoot,
+          cacheDirectory,
+        );
+        assert.equal(result.status, 1, result.stderr);
+        assert.match(result.stderr, expected);
+        assert.equal(
+          await readFile(path.join(project, 'lufa.lock.json'), 'utf8'),
+          lockContents,
+        );
+        assert.equal(
+          await readFile(path.join(project, 'keep.txt'), 'utf8'),
+          'unchanged',
+        );
+        await assert.rejects(lstat(path.join(project, '.agents')));
+      } finally {
+        await rm(project, { recursive: true, force: true });
+      }
+    });
+  }
+
+  try {
+    const mismatched = structuredClone(originalIndex);
+    mismatched.artifacts[0].versions.find(
+      ({ version }) => version === '1.2.0',
+    ).files[0].sha256 = 'a'.repeat(64);
+    await assertNoProjectMutation(
+      mismatched,
+      200,
+      {},
+      fileBytes,
+      0,
+      /Checksum SHA-256 invalide/,
+    );
+    await assertNoProjectMutation(
+      originalIndex,
+      200,
+      { 'content-type': 'text/html; charset=utf-8' },
+      fileBytes,
+      0,
+      /Content-Type refusé/,
+    );
+    await assertNoProjectMutation(
+      originalIndex,
+      404,
+      {},
+      'Not found',
+      0,
+      /HTTP 404/,
+    );
+    await assertNoProjectMutation(
+      originalIndex,
+      302,
+      { location: '/elsewhere' },
+      '',
+      0,
+      /redirection refusée|fetch failed/i,
+    );
+    await assertNoProjectMutation(
+      originalIndex,
+      200,
+      { 'content-length': String(2 * 1024 * 1024 + 1) },
+      Buffer.alloc(2 * 1024 * 1024 + 1),
+      0,
+      /trop volumineux/,
+    );
+    await assertNoProjectMutation(
+      originalIndex,
+      200,
+      {},
+      fileBytes,
+      3_500,
+      /délai dépassé/,
+    );
+  } finally {
+    await registry.setResponse(bundledIndex);
+    await registry.setFileResponse(assetUrl, fileBytes, 200, {
+      'content-type': 'application/octet-stream',
+    });
+  }
+});
+
+test('a second-file checksum failure writes no first-file blob to cache', async () => {
+  await withCache(async (cacheDirectory) => {
+    const index = structuredClone(bundledIndex);
+    const version = index.artifacts[0].versions.find(
+      ({ version }) => version === '1.2.0',
+    );
+    assert.equal(version.files.length, 2);
+    const first = version.files[0];
+    const second = version.files[1];
+    const secondExpectedSha256 = second.sha256;
+    second.sha256 = 'e'.repeat(64);
+    const project = await mkdtemp(path.join(tmpdir(), 'lufa-atomic-blobs-'));
+    const lockContents = '{"schemaVersion":1,"installs":[]}\n';
+    const firstBytes = await readFile(
+      new URL(`../catalog/hello-agent/${first.path}`, import.meta.url),
+    );
+    const blobPath = (sha256) =>
+      path.join(
+        cacheDirectory,
+        'contents',
+        'sha256',
+        sha256.slice(0, 2),
+        sha256,
+      );
+    try {
+      await writeFile(path.join(project, 'lufa.lock.json'), lockContents);
+      await registry.setResponse(index);
+      for (const file of [first, second]) {
+        const relativeUrl = `/registry/catalog/hello-agent/${file.path
+          .split('/')
+          .map(encodeURIComponent)
+          .join('/')}`;
+        await registry.setFileResponse(
+          relativeUrl,
+          file.path === first.path
+            ? firstBytes
+            : await readFile(
+                new URL(`../catalog/hello-agent/${file.path}`, import.meta.url),
+              ),
+          200,
+          { 'content-type': 'application/octet-stream' },
+        );
+      }
+
+      const result = cli(
+        ['install', 'hello-agent@1.2.0', '--project', project, '--yes'],
+        repoRoot,
+        cacheDirectory,
+      );
+      assert.equal(result.status, 1, result.stderr);
+      assert.match(result.stderr, /Checksum SHA-256 invalide/);
+      assert.equal(
+        await readFile(path.join(project, 'lufa.lock.json'), 'utf8'),
+        lockContents,
+      );
+      await assert.rejects(lstat(path.join(project, '.agents')));
+      await assert.rejects(lstat(blobPath(first.sha256)));
+      assert.notEqual(first.sha256, secondExpectedSha256);
+
+      const preserveCache = path.join(cacheDirectory, 'preexisting-cache');
+      const preserveProject = await mkdtemp(
+        path.join(tmpdir(), 'lufa-preserve-blob-'),
+      );
+      const existingBlob = blobPath(first.sha256).replace(
+        cacheDirectory,
+        preserveCache,
+      );
+      try {
+        await mkdir(path.dirname(existingBlob), { recursive: true });
+        await writeFile(existingBlob, firstBytes);
+        await writeFile(
+          path.join(preserveProject, 'lufa.lock.json'),
+          lockContents,
+        );
+        const preserveResult = cli(
+          [
+            'install',
+            'hello-agent@1.2.0',
+            '--project',
+            preserveProject,
+            '--yes',
+          ],
+          repoRoot,
+          preserveCache,
+        );
+        assert.equal(preserveResult.status, 1, preserveResult.stderr);
+        assert.match(preserveResult.stderr, /Checksum SHA-256 invalide/);
+        assert.deepEqual(await readFile(existingBlob), firstBytes);
+        assert.equal(
+          await readFile(path.join(preserveProject, 'lufa.lock.json'), 'utf8'),
+          lockContents,
+        );
+        await assert.rejects(lstat(path.join(preserveProject, '.agents')));
+      } finally {
+        await rm(preserveProject, { recursive: true, force: true });
+      }
+    } finally {
+      await rm(project, { recursive: true, force: true });
+      await registry.setResponse(bundledIndex);
+      for (const file of [first, second]) {
+        const relativeUrl = `/registry/catalog/hello-agent/${file.path
+          .split('/')
+          .map(encodeURIComponent)
+          .join('/')}`;
+        await registry.setFileResponse(
+          relativeUrl,
+          await readFile(
+            new URL(`../catalog/hello-agent/${file.path}`, import.meta.url),
+          ),
+          200,
+          { 'content-type': 'application/octet-stream' },
+        );
+      }
+    }
+  });
+});
+
+test('offline install without an exact index or cached file fails with recovery guidance', async () => {
+  await withCache(async (cacheDirectory) => {
+    const remoteOnly = structuredClone(bundledIndex);
+    remoteOnly.artifacts[0].id = 'remote-only';
+    await registry.setResponse(remoteOnly);
+    const outage = await registry.setResponse({ unavailable: true }, 503);
+    void outage;
+    const project = await mkdtemp(
+      path.join(tmpdir(), 'lufa-no-offline-content-'),
+    );
+    try {
+      const result = cli(
+        ['install', 'remote-only', '--project', project, '--yes'],
+        repoRoot,
+        cacheDirectory,
+      );
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /reconnectez-vous au registre/);
+      await assert.rejects(lstat(path.join(project, 'lufa.lock.json')));
+    } finally {
+      await rm(project, { recursive: true, force: true });
+      await registry.setResponse(bundledIndex);
+    }
+  });
+});
+
+test('content cache refuses hardlinked and hash-corrupted blobs before project writes', async () => {
+  await withCache(async (cacheDirectory) => {
+    const version = bundledIndex.artifacts[0].versions.find(
+      ({ version }) => version === '1.2.0',
+    );
+    const file = version.files[0];
+    const blob = path.join(
+      cacheDirectory,
+      'contents',
+      'sha256',
+      file.sha256.slice(0, 2),
+      file.sha256,
+    );
+    const seedProject = await mkdtemp(path.join(tmpdir(), 'lufa-blob-seed-'));
+    const unsafeProject = await mkdtemp(
+      path.join(tmpdir(), 'lufa-blob-unsafe-'),
+    );
+    const linkedBlob = path.join(cacheDirectory, 'linked-blob');
+    try {
+      await registry.setResponse(bundledIndex);
+      const seed = cli(
+        ['install', 'hello-agent@1.2.0', '--project', seedProject, '--yes'],
+        repoRoot,
+        cacheDirectory,
+      );
+      assert.equal(seed.status, 0, seed.stderr);
+      await link(blob, linkedBlob);
+      const linked = cli(
+        ['install', 'hello-agent@1.2.0', '--project', unsafeProject, '--yes'],
+        repoRoot,
+        cacheDirectory,
+      );
+      assert.equal(linked.status, 1);
+      assert.match(linked.stderr, /fichier de cache.*isolé/);
+      await rm(linkedBlob);
+
+      await writeFile(blob, 'corrupted cache bytes');
+      const corrupted = cli(
+        ['install', 'hello-agent@1.2.0', '--project', unsafeProject, '--yes'],
+        repoRoot,
+        cacheDirectory,
+      );
+      assert.equal(corrupted.status, 1);
+      assert.match(corrupted.stderr, /Contenu corrompu dans le cache/);
+      await assert.rejects(lstat(path.join(unsafeProject, '.agents')));
+      await assert.rejects(lstat(path.join(unsafeProject, 'lufa.lock.json')));
+    } finally {
+      await rm(seedProject, { recursive: true, force: true });
+      await rm(unsafeProject, { recursive: true, force: true });
+      await registry.setResponse(bundledIndex);
     }
   });
 });
