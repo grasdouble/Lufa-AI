@@ -1,4 +1,4 @@
-name: CI
+name: Platform CI
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  checks:
+  platform:
     permissions:
       contents: read
     strategy:
@@ -21,4 +21,4 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - run: npm run check:platform

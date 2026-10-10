@@ -46,9 +46,11 @@
     "web:dev": "cd web && astro dev",
     "registry:build": "node --experimental-strip-types scripts/export-registry.js",
     "web:build": "npm run registry:build && cd web && astro build",
-    "web:build:pages": "npm run registry:build && cd web && ASTRO_BASE=/Lufa-AI ASTRO_OUT_DIR=./dist-pages astro build",
+    "web:build:pages": "npm run registry:build && node scripts/build-pages.js",
     "web:test-fixture": "astro build --root tests/fixtures/web-security",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run catalog:check && npm test && npm run pack:smoke"
+    "check:quality": "npm run format:check && npm run lint",
+    "check:platform": "npm run typecheck && npm run catalog:check && npm test && npm run pack:smoke",
+    "check": "npm run check:quality && npm run check:platform"
   },
   "dependencies": {
     "ajv": "^8.20.0",
